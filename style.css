@@ -7965,3 +7965,10 @@ body.sq-deplace .cell-ins { display: none !important; }
     #sq-grille .sq-boucle-bord.droite { right: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
     #sq-grille .sq-boucle-bord:hover { background: rgba(255, 179, 0, 0.9); }
 }
+
+/* ---- Structure : retours de l'essai neutre du 25/11 (SN-05, SN-10). Bloc en FIN de fichier : la cascade le laisse gagner sur les règles de colonne plus haut. ---- */
+/* La ligne que vise le menu (clic droit, Maj+F10) : deux « Couplet » ne se distinguaient pas. Gris, comme toute sélection. */
+#structure-panel .struct-row.struct-row-cible { box-shadow: inset 0 0 0 2px var(--text-muted); }
+/* Un nom très long et sans espace (200 caractères) passait sous les boutons et sortait du cadre : il se coupe où il faut. */
+#structure-panel .struct-title, #structure-panel .struct-deroule { overflow-wrap: anywhere; min-width: 0; }
+.sf-contenu .sf-nom, .sf-contenu .sf-note-txt { overflow-wrap: anywhere; min-width: 0; }

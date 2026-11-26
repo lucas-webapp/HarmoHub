@@ -1,7 +1,7 @@
 # Plan — nouvelle série de tests Playwright pour la STRUCTURE d'un morceau
 
 Rédigé le 25/11/2026 à la demande de l'utilisateur (« un test playwright spécifique pour la partie structure d'un morceau, je vais en avoir besoin bientôt »).
-**Ce fichier est un PLAN : aucun test n'est encore écrit.** Il se lit avec `tests/PLAN.md` (ligne 11 du tableau : module `structure`) et `CLAUDE-HARMOHUB.md`
+**État au 26/11 : essai neutre fait ; écrits `annuler`, `vue-perimee`, `partie-supprimee`, `metrique`, `paroles`, `clavier`, `export-import`, `lecture` (voir `docs/dette-tests.md`). Restent : E (synchro), G (données extrêmes), L (texte du PDF).** Le reste de ce fichier est le plan d'origine du 25/11. Il se lit avec `tests/PLAN.md` (ligne 11 du tableau : module `structure`) et `CLAUDE-HARMOHUB.md`
 (section « Suite à faire »). Lancé par : `/reprise`, puis « fais la série structure ».
 
 ## 0. À demander à l'utilisateur AVANT de coder (il a dit qu'il en aurait « bientôt » besoin)

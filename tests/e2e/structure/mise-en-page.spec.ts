@@ -3,7 +3,7 @@
 import { test, expect } from '../support/fixtures';
 import {
   morceauTroisParties, ouvrirStructure, retourGrille, fenetre, lignes, ligne, ajoutPartie, ajouterPartie, ongletGrille, ongletStructure,
-  plus, moins, monter, descendre, ouvrirMenu, menuLigne, appuyer, ouvrirApercu, apercu,
+  plus, moins, monter, descendre, ouvrirMenu, menuLigne, appuyer, ouvrirApercu, apercu, estMobile,
 } from './aide-structure';
 import { tientDansL_ecran, defilementHorizontal, barreLecture, boite } from '../mobile/aide-mobile';
 
@@ -76,8 +76,8 @@ test.describe('Mise en page @structure', () => {
   test('la légende rappelle le geste du menu : clic droit à l\'ordinateur, appui long au téléphone', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli(morceauTroisParties());
     await ouvrirStructure(page);
-    const legende = fenetre(page).getByTitle('Clic droit (ou appui long) sur une partie : dupliquer, renommer, commenter, retirer.');
-    await expect(legende).toHaveText('Clic droit : options');
+    const legende = fenetre(page).getByTitle(/^Clic droit \(appui long au doigt, Maj\+F10 au clavier\) sur une partie : dupliquer, renommer, commenter, retirer\.$/);
+    await expect(legende).toHaveText(estMobile(page) ? 'Appui long : options' : 'Clic droit : options');   // SN-11 : le téléphone n'a pas de clic droit
     await appuyer(page, legende);   // la légende est inerte : elle n'ouvre rien
     await expect(menuLigne(page)).toBeHidden();
   });

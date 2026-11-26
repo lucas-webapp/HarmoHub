@@ -144,8 +144,8 @@ test.describe('Ouverture et contenu @structure', () => {
     await ouvrirStructure(page);
     const v = await lire(page);
     // Couplet : 12 temps = 4 mesures de 3 temps ; Refrain : 16 temps = 5,3 mesures (une mesure entamée s'écrit en décimal) ; durée inchangée : 36 × 0,5 s.
-    expect(v.lignes.map(l => l.mesures)).toEqual(['4 mes.', '5.3 mes.', '2.7 mes.']);
-    expect(v.lignes[0].position).toBe('mes. 1–4');
+    expect(v.lignes.map(l => l.mesures)).toEqual(['4 mes.', '5,3 mes.', '2,7 mes.']);   // virgule, comme la grille (« 2,7 mesures ») : SN-06
+    expect(v.lignes.map(l => l.position)).toEqual(['mes. 1–4', 'mes. 5–10', 'mes. 10–12']);   // numéros de mesure entiers : une mesure entamée compte
     expect(v.duree).toBe('0 min 18 s à 120 BPM');
   });
 

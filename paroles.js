@@ -865,9 +865,18 @@ function buildSectionMeta(sec) {
 
         const refreshRepeatUI = () => {
             valueEl.textContent = `× ${sec._repeatCount}`;
-            minusBtn.disabled = sec._repeatCount <= 1;
+            minusBtn.disabled = sec._repeatCount <= 1 || !!(state.song && state.song.structureArrangee);
         };
         refreshRepeatUI();
+        // SN-07 : avec une structure arrangée dans HarmoHub, ce nombre est la somme des passages de la partie dans la structure. Le règler ici
+        // ne changeait pas la structure et revenait seul à sa valeur en quittant l'écran : on l'affiche, on ne le règle plus.
+        if (state.song && state.song.structureArrangee) {
+            minusBtn.disabled = true;
+            plusBtn.disabled = true;
+            repeatWrap.classList.add('section-repeat-verrouille');
+            repeatWrap.title = 'Nombre de passages de cette partie dans la structure du morceau : à régler dans Structure';
+            minusBtn.title = plusBtn.title = 'À régler dans Structure';
+        }
         meta.refreshRepeatUI = refreshRepeatUI; // pour resynchroniser l'affichage après un Annuler/Rétablir
 
         const changeRepeat = (delta) => {

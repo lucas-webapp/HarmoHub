@@ -1,5 +1,5 @@
 // MODULE « structure » — réordonner (↑ ↓) et répéter (− +) les occurrences. Ces gestes changent le plan de jeu, JAMAIS la grille ; ils sont enregistrés
-// aussitôt dans le morceau (survivent au rechargement) et ne sont pas annulables par « Annuler » (limite assumée de l'appli).
+// aussitôt dans le morceau (survivent au rechargement) et sont annulables (Ctrl+Z, voir annuler.spec.ts).
 import { test, expect } from '../support/fixtures';
 import {
   morceauTroisParties, ouvrirStructure, retourGrille, lire, titresLignes, repsLignes, moins, plus, monter, descendre, appuyer, lignes,
@@ -71,15 +71,20 @@ test.describe('Répéter et réordonner @structure', () => {
     expect(v.duree).toBe('0 min 18 s à 120 BPM');
   });
 
-  test('« ↑ » sur la première ligne et « ↓ » sur la dernière sont sans effet', async ({ ouvrirAppli }) => {
+  test('« ↑ » sur la première ligne et « ↓ » sur la dernière sont grisés (SN-14), les autres restent actifs', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli(morceauTroisParties());
     await ouvrirStructure(page);
-    await appuyer(page, monter(page, 0));
-    await appuyer(page, descendre(page, 2));
-    expect(await titresLignes(page)).toEqual(['Couplet', 'Refrain', 'Pont']);
-    await expect(monter(page, 0)).toBeVisible();   // ils restent affichés
+    await expect(monter(page, 0)).toBeDisabled();
+    await expect(descendre(page, 2)).toBeDisabled();
+    await expect(descendre(page, 0)).toBeEnabled();
+    await expect(monter(page, 2)).toBeEnabled();
+    await expect(monter(page, 0)).toBeVisible();   // ils restent affichés, seulement grisés
     await expect(descendre(page, 2)).toBeVisible();
-    expect((await lire(page)).deroule).toBe('Couplet · Refrain · Pont');
+    expect(await titresLignes(page)).toEqual(['Couplet', 'Refrain', 'Pont']);
+    await appuyer(page, descendre(page, 0));       // le Couplet descend : « ↑ » s'active sur lui, « ↑ » de la nouvelle première ligne se grise
+    await expect(monter(page, 0)).toBeDisabled();
+    await expect(monter(page, 1)).toBeEnabled();
+    expect((await lire(page)).deroule).toBe('Refrain · Couplet · Pont');
   });
 
   test('réordonner et répéter ne touchent pas la grille @critique', async ({ ouvrirAppli }) => {

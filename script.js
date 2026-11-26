@@ -1005,6 +1005,15 @@ function geometrieFeuille(reg) {
     return { largeur, hauteur, marge, largeurUtile: largeur - 2 * marge, hauteurUtile: hauteur - 2 * marge, jspdf: f.jspdf, orientation: paysage ? 'landscape' : 'portrait' };
 }
 
+// Les mesures qu'occupe un passage, en NUMÉROS de mesure (SN-06). `avant` = mesures déjà écoulées, `longueur` = durée du passage en mesures
+// (fractionnaire quand on change de métrique : 16 temps = 5,3 mesures de 3 temps). Une mesure entamée compte : un passage de 0,7 mesure
+// occupe « mes. 1 » (avant : « mes. 1–0.7 », une fin avant le début). Un passage d'une seule mesure s'écrit « mes. 13 », pas « 13–13 ».
+function etendueMesures(avant, longueur) {
+    const debut = Math.floor(avant + 1e-6) + 1;
+    const fin = Math.max(debut, Math.ceil(avant + longueur - 1e-6));
+    return { debut, fin, texte: fin > debut ? `${debut}–${fin}` : `${debut}` };
+}
+
 // La structure à l'ÉCRAN : la brute si l'utilisateur en a fait une, sinon celle déduite de la grille.
 function structureEffective(parties) {
     const brute = loadStructureBrute();
@@ -1012,6 +1021,8 @@ function structureEffective(parties) {
         id: it.id || nouvelIdStructure('i'), sid: it.sid,
         rep: repeatCountOf({ repeatCount: it.rep }),
         label: typeof it.label === 'string' && it.label.trim() ? it.label.trim() : '',
+        // Le nom que portait la partie quand elle a été supprimée de la grille (SN-08) : une ligne orpheline le garde, au lieu de « Partie supprimée ».
+        ...(typeof it.nomPartie === 'string' && it.nomPartie.trim() ? { nomPartie: it.nomPartie.trim() } : {}),
         notes: Array.isArray(it.notes) ? it.notes.map(n => ({ texte: texteNoteStructure(n) })).filter(n => n.texte) : [],
     });
     if (brute) return { items: brute.map(propre), materialisee: true };
@@ -10939,13 +10950,21 @@ class HarmoHubApp {
         const sec = sections[s];
         if (sec.chords.length > 0) {
             const label = sec.title || `Partie ${s + 1}`;
-            if (!confirm(`Supprimer « ${label} » et ses ${sec.chords.length} accord(s) ?`)) return;
+            // SN-08 : la confirmation dit aussi ce que la structure y perd (les passages deviendraient des lignes « supprimée »).
+            const passages = (loadStructureBrute() || []).filter(it => it.sid && it.sid === sec.sid).length;
+            const suite = passages ? ` Elle est jouée ${passages} fois dans la structure : ${passages > 1 ? 'ces passages seront barrés' : 'ce passage sera barré'} (annulable).` : '';
+            if (!confirm(`Supprimer « ${label} » et ses ${sec.chords.length} accord(s) ?${suite}`)) return;
             // Version AVANT (lot 3b), seulement quand il y avait quelque chose à perdre — une partie vide ne mérite pas de version.
             this.gardeVersion('avant-suppression-partie', `Avant la suppression de « ${label} »`);
         }
         this.pushUndo(sections);
+        // Les passages de la structure qui renvoyaient à cette partie gardent son nom (SN-08) : sans lui, plusieurs lignes « Partie supprimée »
+        // ne se distinguaient plus (un Couplet d'un Pont).
+        const brute = loadStructureBrute();
+        const nomSupprimee = sec.title || `Partie ${s + 1}`;
+        const structure = brute ? brute.map(it => (sec.sid && it.sid === sec.sid ? { ...it, nomPartie: nomSupprimee } : it)) : undefined;
         sections.splice(s, 1);
-        saveProgressionSections(sections);
+        saveProgressionSections(sections, true, structure);
 
         if (this.activeSection === s && this.editingIndex != null) this.exitEditMode();
         if (this.activeSection >= sections.length) this.activeSection = sections.length - 1;
@@ -12319,6 +12338,9 @@ class HarmoHubApp {
         this.loadProgression();
         this.refreshPreview();
         this.refreshSongList();
+        // La fenêtre Structure peut être ouverte pendant qu'on repart d'un morceau vierge : sans ce redessin elle gardait l'arrangement de
+        // l'ancien morceau et un clic dessus agissait sur le nouveau (essai neutre du 25/11, SN-03).
+        if (this.structureOpen) this.renderStructurePanel();
     }
 
     // Échelles horizontale/verticale de la loupe grille/séquenceur, telles qu'à conserver DANS le
@@ -12523,6 +12545,7 @@ class HarmoHubApp {
         }
         this.refreshSongList();
         this.loadProgression();
+        if (this.structureOpen) this.renderStructurePanel();   // SN-03 : l'arrangement vu ici ne doit pas rester celui d'avant la modification de l'autre onglet
         if (change) this.flashHint('Morceau changé dans un autre onglet : ' + (song ? song.name : 'Nouveau morceau'), 4000);
     }
 
@@ -12830,7 +12853,7 @@ class HarmoHubApp {
         const { items } = structureEffective(parties);
         const beatsPerBar = this.beatsPerBar();
         const bpm = parseInt(document.getElementById('bpm')?.value, 10) || 120;
-        const fmt = (n) => { const r = Math.round(n * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); }; // arrondi AVANT le test : 4 + 5,33 + 2,67 valait 12,0000…1 et s'écrivait « 12.0 » (bug R-01)
+        const fmt = (n) => { const r = Math.round(n * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1).replace('.', ','); }; // arrondi AVANT le test : 4 + 5,33 + 2,67 valait 12,0000…1 et s'écrivait « 12.0 » (bug R-01)
         const partieDe = (it) => parties.find(p => p.sid === it.sid);
         const nomPartie = (p, i) => ((p.title && p.title.trim()) ? p.title.trim() : `Partie ${i + 1}`);
         const mesuresDe = (p) => (p.chords || []).reduce((sum, c) => sum + beatsFromData(c), 0) / beatsPerBar;
@@ -12850,7 +12873,7 @@ class HarmoHubApp {
         let curseur = 1;
         const titreDe = (it) => {
             const p = partieDe(it);
-            return it.label || (p ? nomPartie(p, parties.indexOf(p)) : 'Partie supprimée');
+            return it.label || (p ? nomPartie(p, parties.indexOf(p)) : (it.nomPartie || 'Partie supprimée'));
         };
         const lignes = items.map((it, i) => {
             const p = partieDe(it);
@@ -12860,13 +12883,12 @@ class HarmoHubApp {
                 <div class="struct-row struct-orpheline" data-item="${i}">
                     <span class="struct-famille struct-famille-0"></span>
                     <div class="struct-main"><div class="struct-head"><span class="struct-title">${escapeHtml(titre)}</span>
-                        <span class="struct-measures">cette partie n'existe plus dans la grille</span></div></div>
+                        <span class="struct-measures">${it.nomPartie ? 'supprimée de la grille' : 'cette partie n\'existe plus dans la grille'}</span></div></div>
                     <div class="struct-actions"><button type="button" class="icon-btn" data-struct="supprimer" title="Retirer de la structure" aria-label="Retirer de la structure">✕</button></div>
                 </div>`;
             }
             const mesuresUne = mesuresDe(p);
-            const debut = curseur;
-            const fin = curseur + mesuresUne * it.rep - 1;
+            const etendue = etendueMesures(curseur - 1, mesuresUne * it.rep);
             curseur += mesuresUne * it.rep;
             const grille = this.chordsByMeasure(p, beatsPerBar).map(m => m.map(escapeHtml).join(' ')).join(' | ');
             const famille = familles.indexOf(this.structureFamily(p.title)) % 8;
@@ -12886,16 +12908,16 @@ class HarmoHubApp {
                             <span class="struct-title">${escapeHtml(titre)}</span>
                             <span class="struct-measures">${p.chords.length ? `${fmt(mesuresUne)} mes.` : 'vide'}</span>
                             ${it.rep > 1 ? `<span class="struct-rep">×${it.rep}</span>` : ''}
-                            ${p.chords.length ? `<span class="struct-pos">mes. ${fmt(debut)}–${fmt(fin)}</span>` : ''}
+                            ${p.chords.length ? `<span class="struct-pos">mes. ${etendue.texte}</span>` : ''}
                         </div>
                         ${p.chords.length ? `<div class="struct-chords">| ${grille} |</div>` : ''}
                         ${notes ? `<div class="struct-notes">${notes}</div>` : ''}
                     </div>
                     <div class="struct-actions">
-                        <button type="button" class="icon-btn" data-struct="rep-moins" title="Une répétition de moins" aria-label="Une répétition de moins">−</button>
-                        <button type="button" class="icon-btn" data-struct="rep-plus" title="Une répétition de plus" aria-label="Une répétition de plus">+</button>
-                        <button type="button" class="icon-btn" data-struct="haut" title="Monter" aria-label="Monter">↑</button>
-                        <button type="button" class="icon-btn" data-struct="bas" title="Descendre" aria-label="Descendre">↓</button>
+                        <button type="button" class="icon-btn" data-struct="rep-moins" title="Une répétition de moins" aria-label="Une répétition de moins, ${escapeHtml(titre)}">−</button>
+                        <button type="button" class="icon-btn" data-struct="rep-plus" title="Une répétition de plus" aria-label="Une répétition de plus, ${escapeHtml(titre)}">+</button>
+                        <button type="button" class="icon-btn" data-struct="haut" title="Monter" aria-label="Monter, ${escapeHtml(titre)}"${i === 0 ? ' disabled' : ''}>↑</button>
+                        <button type="button" class="icon-btn" data-struct="bas" title="Descendre" aria-label="Descendre, ${escapeHtml(titre)}"${i === items.length - 1 ? ' disabled' : ''}>↓</button>
                     </div>
                 </div>`;
         }).join('');
@@ -12914,7 +12936,7 @@ class HarmoHubApp {
                     <option value="">+ Partie…</option>
                     ${parties.map((p, i) => `<option value="${escapeHtml(p.sid)}">${escapeHtml(nomPartie(p, i))}${usages(p.sid) ? ` (déjà ${usages(p.sid)}×)` : ' (pas encore utilisée)'}</option>`).join('')}
                 </select>
-                <span class="struct-aide" title="Clic droit (ou appui long) sur une partie : dupliquer, renommer, commenter, retirer.">Clic droit : options</span>
+                <span class="struct-aide" title="Clic droit (appui long au doigt, Maj+F10 au clavier) sur une partie : dupliquer, renommer, commenter, retirer.">${window.matchMedia('(min-width: 900px)').matches ? 'Clic droit : options' : 'Appui long : options'}</span>
             </div>`;
 
         hote.innerHTML = `
@@ -12925,7 +12947,7 @@ class HarmoHubApp {
             </div>
             ${deroule ? `<div class="struct-deroule"><span class="struct-deroule-label">Déroulé</span> ${deroule}</div>` : ''}
             <div class="struct-liste">${lignes}</div>
-            ${parties.some(s => s.chords.length) ? '' : '<p class="struct-vide">Aucun accord pour l\'instant — la structure apparaîtra ici dès que la grille en contiendra.</p>'}
+            ${parties.some(s => s.chords.length) ? (items.length ? '' : '<p class="struct-vide">La structure est vide — ajoute une partie avec « + Partie… » ci-dessous.</p>') : '<p class="struct-vide">Aucun accord pour l\'instant — la structure apparaîtra ici dès que la grille en contiendra.</p>'}
             ${ajout}`;
 
         hote.querySelectorAll('.struct-row').forEach(row => {
@@ -12944,7 +12966,22 @@ class HarmoHubApp {
             });
             // CLIC DROIT, et appui long au doigt (550 ms, comme les cases de la grille) : les mêmes actions
             // que les boutons, plus celles qui n'ont pas de bouton (dupliquer, renommer, commenter).
-            row.addEventListener('contextmenu', (e) => { e.preventDefault(); this.ouvrirMenuStructure(e.clientX, e.clientY, i); });
+            // Au clavier : Maj+F10 et la touche Menu. Chromium en tire un évènement `contextmenu`, Firefox et WebKit non : on traite donc la touche
+            // nous-mêmes (et preventDefault évite le doublon sur Chromium).
+            row.addEventListener('keydown', (e) => {
+                if (!(e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey))) return;
+                if (!e.target.closest('button, .struct-note')) return;
+                e.preventDefault();
+                const ref = e.target.getBoundingClientRect();
+                this.ouvrirMenuStructure(ref.left, ref.bottom, i, true);
+            });
+            row.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                // Maj+F10 ou touche Menu : pas de bouton droit (button 0) et un élément de la ligne a le focus → on ancre le menu sur cet élément.
+                const auClavier = e.button !== 2 && !!e.target.closest('button, .struct-note') && row.contains(document.activeElement);
+                const ref = auClavier ? document.activeElement.getBoundingClientRect() : null;
+                this.ouvrirMenuStructure(ref ? ref.left : e.clientX, ref ? ref.bottom : e.clientY, i, auClavier);
+            });
             let minuteur = null, x0 = 0, y0 = 0;
             row.addEventListener('touchstart', (e) => {
                 if (e.touches.length !== 1 || e.target.closest('button, .struct-note')) return;
@@ -12961,6 +12998,9 @@ class HarmoHubApp {
             const sid = sel.value;
             if (!sid) return;
             this.modifierStructure((liste) => { liste.push({ id: nouvelIdStructure('i'), sid, rep: 1, label: '', notes: [] }); });
+            // SN-15 : avec une longue liste, la ligne ajoutée (en bas) restait hors de la vue.
+            const derniere = document.querySelector('#structure-panel .struct-row:last-of-type');
+            if (derniere && derniere.scrollIntoView) derniere.scrollIntoView({ block: 'nearest' });
         };
     }
 
@@ -12970,7 +13010,11 @@ class HarmoHubApp {
         const parties = assurerIdentifiantsParties();
         const copie = JSON.parse(JSON.stringify(structureEffective(parties).items));
         const etaitModifie = hasUnsavedChanges;
+        const avant = JSON.stringify(copie);
         fn(copie, parties);
+        // Une étape d'annulation par geste, AVANT d'écrire (SN-01) ; l'instantané garde l'arrangement d'avant. Un geste qui ne change rien
+        // (↑ sur la première ligne, − à ×1) n'en crée pas : un Ctrl+Z qui ne ferait rien serait une case perdue dans l'historique.
+        if (JSON.stringify(copie) !== avant) this.pushUndo(parties);
         saveStructureBrute(copie);
         this.persisterStructureDansMorceau(etaitModifie);
         this.renderStructurePanel();
@@ -12998,6 +13042,7 @@ class HarmoHubApp {
 
     actionStructure(i, action) {
         this.fermerMenuStructure();
+        const viaClavier = document.activeElement && document.activeElement.closest && document.activeElement.closest('#structure-panel') && document.activeElement.dataset && document.activeElement.dataset.struct === action;
         this.modifierStructure((liste) => {
             const it = liste[i];
             if (!it) return;
@@ -13012,14 +13057,31 @@ class HarmoHubApp {
             } else if (action === 'supprimer') liste.splice(i, 1);
         });
         if (action === 'supprimer') this.flashHint('Retirée de la structure — la partie reste dans la grille', 3200);
+        // SN-04 : la liste est redessinée à chaque geste ; sans cela le focus tombait sur la page et le Tab suivant repartait du haut. On le rend au même
+        // bouton, sur la ligne où l'occurrence se trouve maintenant (↑ ↓ la déplacent). Au bout de la liste le bouton est grisé : on prend son pendant.
+        if (viaClavier) {
+            const ligneVisee = action === 'haut' ? i - 1 : action === 'bas' ? i + 1 : i;
+            const lignes = document.querySelectorAll('#structure-panel .struct-row');
+            const row = lignes[Math.max(0, Math.min(ligneVisee, lignes.length - 1))];
+            let bouton = row && row.querySelector(`[data-struct="${action}"]:not([disabled])`);
+            if (!bouton && row) bouton = row.querySelector(`[data-struct="${action === 'haut' ? 'bas' : action === 'bas' ? 'haut' : 'rep-plus'}"]:not([disabled])`) || row.querySelector('[data-struct]:not([disabled])');
+            if (bouton) bouton.focus();
+        }
     }
 
     // ----- clic droit -----
-    ouvrirMenuStructure(x, y, i) {
+    ouvrirMenuStructure(x, y, i, auClavier) {
         const menu = document.getElementById('struct-menu');
         if (!menu) return;
         this._structCible = i;
         menu.hidden = false;
+        // SN-05 : on voit laquelle des lignes (deux « Couplet », par exemple) le menu vise.
+        document.querySelectorAll('#structure-panel .struct-row.struct-row-cible').forEach(r => r.classList.remove('struct-row-cible'));
+        const rowVisee = document.querySelector(`#structure-panel .struct-row[data-item="${i}"]`);
+        if (rowVisee) rowVisee.classList.add('struct-row-cible');
+        // SN-04 : ouvert au clavier (Maj+F10, touche Menu), le menu prend le focus ; flèches ↑ ↓ pour choisir, Entrée pour valider, Échap pour revenir.
+        if (auClavier) { this._structMenuRetour = document.activeElement; const premier = menu.querySelector('button'); if (premier) premier.focus(); }
+        else this._structMenuRetour = null;
         const pad = 8;
         menu.style.left = `${Math.max(pad, Math.min(x, window.innerWidth - menu.offsetWidth - pad))}px`;
         menu.style.top = `${Math.max(pad, Math.min(y, window.innerHeight - menu.offsetHeight - pad))}px`;
@@ -13028,9 +13090,30 @@ class HarmoHubApp {
     fermerMenuStructure() {
         const menu = document.getElementById('struct-menu');
         if (menu) menu.hidden = true;
+        document.querySelectorAll('#structure-panel .struct-row.struct-row-cible').forEach(r => r.classList.remove('struct-row-cible'));
+        // Fermé depuis le clavier (Échap) : le focus retourne là où il était, au lieu de se perdre sur la page.
+        const retour = this._structMenuRetour;
+        this._structMenuRetour = null;
+        if (retour && retour.isConnected && menu && menu.contains(document.activeElement)) retour.focus();
     }
 
     brancherMenuStructure() {
+        const menu = document.getElementById('struct-menu');
+        if (menu) menu.addEventListener('keydown', (e) => {
+            const boutons = [...menu.querySelectorAll('button')];
+            const k = boutons.indexOf(document.activeElement);
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                boutons[(k + (e.key === 'ArrowDown' ? 1 : -1) + boutons.length) % boutons.length].focus();
+            } else if (e.key === 'Home' || e.key === 'End') {
+                e.preventDefault();
+                boutons[e.key === 'Home' ? 0 : boutons.length - 1].focus();
+            } else if (e.key === 'Escape' || e.key === 'Tab') {
+                if (e.key === 'Escape') e.stopPropagation();
+                e.preventDefault();
+                this.fermerMenuStructure();
+            }
+        });
         document.querySelectorAll('#struct-menu [data-struct-ctx]').forEach(b => {
             b.onclick = () => {
                 const i = this._structCible;
@@ -13057,7 +13140,13 @@ class HarmoHubApp {
         document.getElementById('struct-edit-delete').hidden = !supprimable;
         modal.hidden = false;
         const premier = modal.querySelector('input, textarea');
-        if (premier) setTimeout(() => premier.focus(), 30);
+        // SN-09 : « Renommer » ouvrait le champ avec le curseur au début (taper « Couplet A » donnait « Couplet ACouplet ») : on sélectionne le nom,
+        // comme partout ailleurs ; un commentaire déjà écrit s'ouvre, lui, curseur à la fin (on le complète plus souvent qu'on ne le remplace).
+        if (premier) setTimeout(() => {
+            premier.focus();
+            if (premier.tagName === 'TEXTAREA') premier.setSelectionRange(premier.value.length, premier.value.length);
+            else if (premier.select) premier.select();
+        }, 30);
         return new Promise((resolve) => {
             const fermer = (rep) => { modal.hidden = true; this._structEditAnnuler = null; resolve(rep); };
             this._structEditAnnuler = () => fermer(null);
@@ -13148,13 +13237,13 @@ class HarmoHubApp {
         const { items } = structureEffective(parties);
         const beatsPerBar = this.beatsPerBar();
         const bpm = parseInt(document.getElementById('bpm')?.value, 10) || 120;
-        const fmt = (n) => { const r = Math.round(n * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); }; // arrondi AVANT le test : 4 + 5,33 + 2,67 valait 12,0000…1 et s'écrivait « 12.0 » (bug R-01)
+        const fmt = (n) => { const r = Math.round(n * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1).replace('.', ','); }; // arrondi AVANT le test : 4 + 5,33 + 2,67 valait 12,0000…1 et s'écrivait « 12.0 » (bug R-01)
         const partieDe = (it) => parties.find(p => p.sid === it.sid);
         const nomPartie = (p, i) => ((p.title && p.title.trim()) ? p.title.trim() : `Partie ${i + 1}`);
         const mesuresDe = (p) => (p.chords || []).reduce((sum, c) => sum + beatsFromData(c), 0) / beatsPerBar;
         const titreDe = (it) => {
             const p = partieDe(it);
-            return it.label || (p ? nomPartie(p, parties.indexOf(p)) : 'Partie supprimée');
+            return it.label || (p ? nomPartie(p, parties.indexOf(p)) : (it.nomPartie || 'Partie supprimée'));
         };
         // Repère de temps : « à quelle minute arrive le pont ? » — la question qu'on se pose en répétition
         // avec un enregistrement, et que le numéro de mesure seul ne règle pas.
@@ -13181,7 +13270,7 @@ class HarmoHubApp {
             const [fort, pale] = couleurDe(it);
             const une = mesuresDe(p);
             const debut = curseur;
-            const fin = curseur + une * it.rep - 1;
+            const etendue = etendueMesures(curseur - 1, une * it.rep);
             curseur += une * it.rep;
             totalMesures += une * it.rep;
             const grille = this.chordsByMeasure(p, beatsPerBar).map(m => escapeHtml(m.join(' '))).join('<span class="sf-bar">|</span>');
@@ -13194,7 +13283,7 @@ class HarmoHubApp {
                 <div class="sf-tete">
                     <span class="sf-nom" style="color:${fort}">${escapeHtml(titreDe(it))}</span>
                     ${it.rep > 1 ? `<span class="sf-rep" style="color:${fort};background:${pale};border-color:${fort}55">×${it.rep}</span>` : ''}
-                    <span class="sf-etendue">${reg.temps ? `à ${horloge(debut)} · ` : ''}mes. ${fmt(debut)}${fin > debut ? `–${fmt(fin)}` : ''} · ${fmt(une)} mes.${it.rep > 1 ? ` × ${it.rep}` : ''}</span>
+                    <span class="sf-etendue">${reg.temps ? `à ${horloge(debut)} · ` : ''}mes. ${etendue.texte} · ${fmt(une)} mes.${it.rep > 1 ? ` × ${it.rep}` : ''}</span>
                 </div>
                 ${reg.accords ? `<div class="sf-grille" style="background:${pale}"><span class="sf-bar">|</span>${grille}<span class="sf-bar">|</span></div>` : ''}
                 ${notes ? `<div class="sf-notes">${notes}</div>` : ''}
@@ -15921,6 +16010,9 @@ class HarmoHubApp {
             // déjà posés d'un morceau sur l'autre.
             songId: getCurrentSongId(),
             beatsPerBar: this.beatsPerBar(),
+            // SN-07 : quand le morceau a une structure arrangée, le ×N d'une partie est la SOMME de ses passages dans la structure : Paroles l'affiche
+            // mais ne le règle plus (deux sources de vérité pour un même nombre, et un réglage qui revenait seul à la valeur de la structure).
+            structureArrangee: !!loadStructureBrute(),
             sections: sections.map(sec => ({
                 // Identifiant stable de la partie : Paroles y range les textes (et non plus à la position de la partie, voir P-05).
                 sid: sec.sid,
@@ -20250,11 +20342,16 @@ class HarmoHubApp {
     // mais CET historique n'est lu par Ctrl+Z QUE fenêtre Fichiers ouverte (voir globalUndo) — hors de
     // cette fenêtre, où vit le bouton crayon de renommage, l'action devenait invisible pour Ctrl+Z.
     // Le nom suit donc désormais ce même instantané, comme n'importe quel autre réglage du morceau.
+    // LA STRUCTURE FAIT PARTIE DE L'INSTANTANÉ (essai neutre du 25/11, SN-01 / SN-02). Avant, un geste de structure n'entrait pas dans
+    // l'historique : Ctrl+Z défaisait en silence un geste de GRILLE antérieur, dont les parties n'avaient pas encore d'identifiant `sid`, et
+    // la structure, qui y renvoie par `sid`, devenait orpheline (« Partie supprimée » sur toutes les lignes). Les parties et l'arrangement
+    // sont donc photographiés ensemble, et défaits ensemble, dans l'ordre où l'utilisateur les a faits.
     captureGlobalSnapshot(sections) {
         const songId = getCurrentSongId();
         const song = songId ? loadSongs().find(s => s.id === songId) : null;
         return {
             sections: sections !== undefined ? sections : loadProgressionSections(),
+            structure: loadStructureBrute(),
             root: document.getElementById('global-root').value,
             mode: document.getElementById('global-mode').value,
             bpm: document.getElementById('bpm').value,
@@ -20311,11 +20408,20 @@ class HarmoHubApp {
         }
     }
 
+    // Remet les parties ET l'arrangement d'un instantané. Si l'arrangement a changé, il rejoint aussi le morceau enregistré, comme
+    // le fait le geste lui-même (modifierStructure) : sinon l'export et la synchro verraient l'état « défait » avec un tampon différent.
+    restaurerSectionsEtStructure(snap) {
+        const avant = JSON.stringify(loadStructureBrute());
+        saveProgressionSections(snap.sections, true, snap.structure);   // `structure` absente d'un instantané ancien = on garde l'actuelle
+        if (snap.structure !== undefined && JSON.stringify(loadStructureBrute()) !== avant) this.persisterStructureDansMorceau(true);
+        if (this.structureOpen) this.renderStructurePanel();           // la fenêtre ouverte montre aussitôt ce qui vient d'être défait
+    }
+
     undo() {
         if (this.undoStack.length === 0) { this.flashHint('Rien à annuler'); return; }
         this.redoStack.push(JSON.stringify(this.captureGlobalSnapshot()));
         const prev = JSON.parse(this.undoStack.pop());
-        saveProgressionSections(prev.sections);
+        this.restaurerSectionsEtStructure(prev);
         this.restoreHistorySettings(prev);
         this.afterHistoryRestore(prev.sections);
         if (this.sequenceur && this.sequenceur.apresHistorique) this.sequenceur.apresHistorique();   // EB-01 : le bandeau de renommage relit les notes restaurées
@@ -20326,7 +20432,7 @@ class HarmoHubApp {
         if (this.redoStack.length === 0) { this.flashHint('Rien à rétablir'); return; }
         this.undoStack.push(JSON.stringify(this.captureGlobalSnapshot()));
         const next = JSON.parse(this.redoStack.pop());
-        saveProgressionSections(next.sections);
+        this.restaurerSectionsEtStructure(next);
         this.restoreHistorySettings(next);
         this.afterHistoryRestore(next.sections);
         if (this.sequenceur && this.sequenceur.apresHistorique) this.sequenceur.apresHistorique();
@@ -20669,7 +20775,9 @@ class HarmoHubApp {
             // Exception : dans la fenêtre Paramètres, Espace est la touche d'un interrupteur ou d'un bouton qui a le focus (bug E-02 : il lançait la
             // lecture derrière la fenêtre au lieu de basculer le réglage).
             const dansReglages = this.settingsOpen && e.target && e.target.closest && e.target.closest('#settings-overlay') && e.target.closest('button, input, select, [role="switch"], [role="button"]');
-            if ((e.key === ' ' || e.code === 'Space') && !typing && !mod && !dansReglages) {
+            // Même règle pour la fenêtre Structure et ses menus (essai neutre du 25/11, SN-04) : Espace sur un bouton le presse, il ne lance pas la lecture.
+            const dansStructure = e.target && e.target.closest && e.target.closest('#structure-overlay, #struct-menu, #struct-edit-modal, #structure-apercu') && e.target.closest('button, select, [role="button"]');
+            if ((e.key === ' ' || e.code === 'Space') && !typing && !mod && !dansReglages && !dansStructure) {
                 e.preventDefault();
                 if (this.isPlaying) this.stopAll();
                 else this.playProgression();
