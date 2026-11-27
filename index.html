@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611261700">
+    <link rel="stylesheet" href="style.css?v=202611262300">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611261700">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611262300">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -759,39 +759,47 @@
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
                 </button>
             </div>
-            <!-- Plus d'onglets (retour utilisateur : « j'aime bien la présentation en onglets, mais
-                 vu qu'il y a peu de paramètres, c'est peut-être pas nécessaire ») : trois onglets pour
-                 une dizaine de réglages obligeaient à deviner dans lequel se trouve celui qu'on cherche,
-                 alors que le tout tient en une page. Une seule colonne qui défile, un titre par
-                 groupe : on VOIT tout d'un coup, il n'y a plus rien à parcourir. -->
+            <!-- DES ONGLETS PAR CATÉGORIE (retour utilisateur du 26/11 : « les paramètres triés par onglet, par exemple son, affichage… là, tout est à la suite,
+                 ce n'est pas forcément bien, alors que sur TrainHub c'est vachement mieux fait »). Le 14/11 on les avait retirés : « vu qu'il y a peu de paramètres,
+                 ce n'est peut-être pas nécessaire » ; il y en a maintenant une trentaine, dans cinq groupes. Une colonne d'onglets à gauche (une rangée au-dessus sur
+                 téléphone), une catégorie à la fois ; la dernière consultée est retenue (voir afficherOngletReglages). Les identifiants des panneaux
+                 (#settings-panel-…) n'ont pas bougé : ils sont remplis par les mêmes fonctions. -->
             <div class="settings-body">
+                <div class="settings-tabs" role="tablist" aria-label="Catégories de réglages" aria-orientation="vertical">
+                    <button type="button" class="settings-tab" role="tab" id="settings-tab-son" data-settings-tab="son" aria-controls="settings-page-son" aria-selected="true" tabindex="0"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg><span>Son</span></button>
+                    <button type="button" class="settings-tab" role="tab" id="settings-tab-affichage" data-settings-tab="affichage" aria-controls="settings-page-affichage" aria-selected="false" tabindex="-1"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span>Affichage</span></button>
+                    <button type="button" class="settings-tab" role="tab" id="settings-tab-historique" data-settings-tab="historique" aria-controls="settings-page-historique" aria-selected="false" tabindex="-1"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg><span>Historique</span></button>
+                    <button type="button" class="settings-tab" role="tab" id="settings-tab-apropos" data-settings-tab="apropos" aria-controls="settings-page-apropos" aria-selected="false" tabindex="-1"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>À propos</span></button>
+                </div>
                 <div class="settings-content">
-                    <h3 class="settings-group-title">Son</h3>
-                    <div id="settings-panel-audio" class="settings-panel" data-settings-panel="audio"></div>
-                    <!-- « Affichage » et non « Affichage de la grille » : ces réglages ne concernent
-                         aujourd'hui que la grille, mais ils ont vocation à couvrir toute l'appli —
-                         autant ne pas avoir à renommer le groupe à ce moment-là. -->
-                    <h3 class="settings-group-title">Affichage</h3>
-                    <div id="settings-panel-display" class="settings-panel" data-settings-panel="display"></div>
-                    <!-- APPARENCE : l'effet verre (voir verre.js et verre.css), un réglage PAR APPAREIL. Le groupe se masque de
-                         lui-même si verre.js n'a pas chargé : pas de commande qui ne ferait rien. -->
-                    <h3 class="settings-group-title" id="settings-title-look">Apparence</h3>
-                    <div id="settings-panel-look" class="settings-panel" data-settings-panel="look"></div>
-                    <!-- HISTORIQUE ET RÉCUPÉRATION (refonte, lot 3b) : les versions automatiques gardées sur CET appareil, consultables et
-                         restaurables. « Mettre versions de l'appli et récupérations historiques dans les paramètres » : l'historique et « À propos »
-                         vivent ici, pas dans la barre du haut. Voir historique.js. -->
-                    <h3 class="settings-group-title" id="settings-title-historique">Historique et récupération</h3>
-                    <div id="settings-panel-historique" class="settings-panel" data-settings-panel="historique"></div>
-                    <h3 class="settings-group-title" id="settings-title-apropos">À propos</h3>
-                    <div id="settings-panel-apropos" class="settings-panel" data-settings-panel="apropos"></div>
-                    <!-- Plus de groupe « Mes morceaux » ici : un gestionnaire de fichiers n'est pas
-                         un réglage, et depuis qu'il a son propre bouton à droite du titre du morceau
-                         (#song-files), le laisser aussi dans les Paramètres n'était qu'une seconde
-                         porte vers exactement la même chose — le motif que l'utilisateur a signalé
-                         deux fois (« plusieurs options se recroisent »). Le panneau vit désormais
-                         uniquement dans #files-overlay. L'export/import de bibliothèque reste
-                         atteignable par les flèches du module Morceau et par la barre d'outils de
-                         cette fenêtre. Les Paramètres ne contiennent plus QUE des préférences. -->
+                    <section class="settings-page" id="settings-page-son" role="tabpanel" aria-labelledby="settings-tab-son">
+                        <h3 class="settings-group-title">Son</h3>
+                        <div id="settings-panel-audio" class="settings-panel" data-settings-panel="audio"></div>
+                    </section>
+                    <section class="settings-page" id="settings-page-affichage" role="tabpanel" aria-labelledby="settings-tab-affichage" hidden>
+                        <!-- « Affichage » et non « Affichage de la grille » : ces réglages ne concernent
+                             aujourd'hui que la grille, mais ils ont vocation à couvrir toute l'appli —
+                             autant ne pas avoir à renommer le groupe à ce moment-là. -->
+                        <h3 class="settings-group-title">Affichage</h3>
+                        <div id="settings-panel-display" class="settings-panel" data-settings-panel="display"></div>
+                        <!-- APPARENCE : l'effet verre (voir verre.js et verre.css), un réglage PAR APPAREIL. Le groupe se masque de
+                             lui-même si verre.js n'a pas chargé : pas de commande qui ne ferait rien. -->
+                        <h3 class="settings-group-title" id="settings-title-look">Apparence</h3>
+                        <div id="settings-panel-look" class="settings-panel" data-settings-panel="look"></div>
+                    </section>
+                    <section class="settings-page" id="settings-page-historique" role="tabpanel" aria-labelledby="settings-tab-historique" hidden>
+                        <!-- HISTORIQUE ET RÉCUPÉRATION (refonte, lot 3b) : les versions automatiques gardées sur CET appareil, consultables et
+                             restaurables. « Mettre versions de l'appli et récupérations historiques dans les paramètres » : l'historique et « À propos »
+                             vivent ici, pas dans la barre du haut. Voir historique.js. -->
+                        <h3 class="settings-group-title" id="settings-title-historique">Historique et récupération</h3>
+                        <div id="settings-panel-historique" class="settings-panel" data-settings-panel="historique"></div>
+                    </section>
+                    <section class="settings-page" id="settings-page-apropos" role="tabpanel" aria-labelledby="settings-tab-apropos" hidden>
+                        <h3 class="settings-group-title" id="settings-title-apropos">À propos</h3>
+                        <div id="settings-panel-apropos" class="settings-panel" data-settings-panel="apropos"></div>
+                    </section>
+                    <!-- Plus de groupe « Mes morceaux » ici : un gestionnaire de fichiers n'est pas un réglage (il a son propre bouton, #song-files, et vit
+                         dans #files-overlay). Les Paramètres ne contiennent plus QUE des préférences. -->
                 </div>
             </div>
         </div>
@@ -2171,18 +2179,18 @@
     <script src="firebase-config.js?v=202610030200"></script>
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202611251100"></script>
-    <script src="synchro-cloud.js?v=202611261700"></script>
+    <script src="synchro-cloud.js?v=202611262300"></script>
     <script src="historique.js?v=202611060300"></script>
     <!-- sequenceur.js AVANT script.js : l'appli (window.app) est créée à la fin de script.js et construit le séquenceur dans la foulée. -->
     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
     <script src="synchro-formes.js?v=202611131800"></script>
-    <script src="synchro-doigtes.js?v=202611261700"></script>
-    <script src="sequenceur.js?v=202611261700"></script>
-    <script src="script.js?v=202611261700"></script>
+    <script src="synchro-doigtes.js?v=202611262300"></script>
+    <script src="sequenceur.js?v=202611262300"></script>
+    <script src="script.js?v=202611262300"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611261700"></script>
+    <script src="synchro-harmohub.js?v=202611262300"></script>
     <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
     <script src="synchro-versions.js?v=202611060400"></script>
 </body>

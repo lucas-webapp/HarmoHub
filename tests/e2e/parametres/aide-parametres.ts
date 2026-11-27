@@ -1,5 +1,5 @@
 // Aides communes aux specs du module « parametres » (ce n'est pas une spec : le nom ne finit pas par .spec.ts).
-// La fenêtre « Paramètres » (bouton en forme de roue, barre du haut) réunit cinq sections : Son, Affichage, Apparence, Historique et récupération, À propos.
+// La fenêtre « Paramètres » (bouton en forme de roue, barre du haut) range ses réglages en quatre ONGLETS : Son, Affichage (avec l'Apparence), Historique, À propos.
 // Deux sections portent un volet « Options avancées » replié (une ligne « Son du métronome » / « Écouter en éditant » dans Son ; « Fonction harmonique » /
 // « Repères de temps » dans Affichage). Ce sont des réglages de L'APPAREIL (stockage local), jamais du morceau : en changer ne rend pas le morceau « non enregistré ».
 // L'historique des versions (Restaurer, Vider) est éprouvé par le module `synchro` ; ici on n'en parle pas.
@@ -20,13 +20,28 @@ export async function ouvrir(page: Page): Promise<Locator> {
   await expect(fenetre(page)).toBeVisible();
   return fenetre(page);
 }
+// LES ONGLETS (26/11) : la fenêtre range ses réglages par catégorie, une à la fois (Son, Affichage, Historique, À propos). Un réglage n'est visible que dans son onglet ;
+// `allerA` clique l'onglet (comme l'utilisateur) s'il n'est pas déjà affiché. « Apparence » (verre dépoli, couleur du fond) est dans « Affichage ».
+export type Onglet = 'Son' | 'Affichage' | 'Historique' | 'À propos';
+export const ongletReglages = (page: Page, nom: Onglet): Locator => fenetre(page).getByRole('tab', { name: nom, exact: true });
+export async function allerA(page: Page, nom: Onglet) {
+  const o = ongletReglages(page, nom);
+  if ((await o.getAttribute('aria-selected')) !== 'true') await appuyer(page, o);
+  await expect(o).toHaveAttribute('aria-selected', 'true');
+}
+export async function ouvrirSur(page: Page, nom: Onglet): Promise<Locator> {
+  const f = await ouvrir(page);
+  await allerA(page, nom);
+  return f;
+}
 export async function fermer(page: Page) {
   await page.keyboard.press('Escape');
   await expect(fenetre(page)).toBeHidden();
 }
-// Les deux volets « Options avancées » se déplient d'un clic sur leur titre (ils sont repliés à chaque ouverture de l'appli).
+// Le volet « Options avancées » de l'onglet AFFICHÉ se déplie d'un clic sur son titre (il est replié à chaque ouverture de l'appli) ; il y en a un dans Son et un dans
+// Affichage : on appelle donc cette aide après `allerA`, pour chaque onglet dont on veut les réglages avancés.
 export async function deplierAvancees(page: Page) {
-  const volets = fenetre(page).locator('details.settings-advanced');
+  const volets = fenetre(page).locator('details.settings-advanced:visible');
   const n = await volets.count();
   for (let i = 0; i < n; i++) {
     if (!(await volets.nth(i).evaluate((d: HTMLDetailsElement) => d.open))) await appuyer(page, volets.nth(i).locator('summary'));

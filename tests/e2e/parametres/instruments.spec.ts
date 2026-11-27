@@ -3,7 +3,7 @@
 // E-03 à E-05 (bugs.md) : les noms de notes ignorent la tonalité (D# là où la grille écrit E♭ en do).
 import { test, expect } from '../support/fixtures';
 import type { Page } from '@playwright/test';
-import { C_AM_F_G, ouvrir, fermer, interrupteur, choix, NOM, lireStockage } from './aide-parametres';
+import { C_AM_F_G, ouvrirSur, fermer, interrupteur, choix, NOM, lireStockage } from './aide-parametres';
 import { boutonGuitare, caseN, ouvrirEditeur, ongletDessin, manche, guitare, touchesJouees, notesAccord, fermerEditeur } from '../diagrammes/aide-diagrammes';
 import { choisir, fermerFenetre } from '../tonalite/aide-tonalite';
 
@@ -22,7 +22,7 @@ const pastillesParmi = (page: Page, permis: string[]) => expect.poll(async () =>
 }, { message: `pastilles attendues parmi ${permis.join(' ')}` }).toBe(true);
 
 async function reglerEtiquettes(page: Page, piano?: string, guitareChoix?: string) {
-  await ouvrir(page);
+  await ouvrirSur(page, 'Affichage');
   if (piano) await choix(page, 'Touches du piano', piano).click();
   if (guitareChoix) await choix(page, 'Pastilles de la guitare', guitareChoix).click();
   await fermer(page);
@@ -85,7 +85,7 @@ test.describe('Touches du piano et pastilles de la guitare @parametres @ordinate
     await page.waitForFunction(() => !!(window as any).app);
     await caseN(page, 0, 1).click();
     await expect.poll(() => etiquettesPiano(page)).toEqual(['A', 'C', 'E']);
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     await expect(choix(page, 'Touches du piano', 'Notes')).toBeChecked();
     await expect(choix(page, 'Pastilles de la guitare', 'Degrés')).toBeChecked();
   });
@@ -125,7 +125,7 @@ test.describe('Notation des noms de notes : la tonalité décide des dièses et 
   test('E-04 : « Notes du manche de dessin » écrit les notes de la tonalité (B♭, E♭ en do), pas A#, D#', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await boutonGuitare(page).click();
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     await interrupteur(page, NOM.nomsManche).click();
     await fermer(page);
     await caseN(page, 0, 0).click();
@@ -157,7 +157,7 @@ test.describe('Manche de dessin @parametres @ordinateur', () => {
     await fermerEditeur(page).click();
     await expect(page.getByRole('dialog', { name: 'Édition manuelle — Guitare' })).toBeHidden();
 
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     await expect(interrupteur(page, NOM.nomsManche)).toHaveAttribute('aria-checked', 'false');
     await interrupteur(page, NOM.nomsManche).click();
     await expect(interrupteur(page, NOM.nomsManche)).toHaveAttribute('aria-checked', 'true');

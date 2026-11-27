@@ -51,6 +51,8 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
             await page.click('#open-settings');
             await page.waitForTimeout(300);
         }
+        await page.click('#settings-tab-affichage');   // 26/11 : les réglages sont rangés par onglet ; la position d'accord est dans « Affichage »
+        await page.waitForTimeout(150);
         await page.selectOption('#grid-voicing-badge', valeur);
         await page.waitForTimeout(200);
         await page.click('#settings-close');
@@ -85,17 +87,17 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.waitForTimeout(200);
     check(await page.evaluate(() => document.getElementById('quick-add-help').hidden), 'Échap le referme');
 
-    console.log('=== 3. Paramètres : une seule page, « Style de jeu » toujours retiré ===');
+    console.log('=== 3. Paramètres : une catégorie à la fois (quatre onglets, retour du 26/11), « Style de jeu » toujours retiré ===');
     await page.click('#open-settings');
     await page.waitForTimeout(300);
     r = await page.evaluate(() => ({
-        plusDOnglets: document.querySelectorAll('#settings-overlay .settings-tab').length === 0,
+        quatreOnglets: document.querySelectorAll('#settings-overlay [role="tab"]').length === 4 && document.querySelectorAll('#settings-overlay [role="tabpanel"]:not([hidden])').length === 1,
         styleToggleGone: !document.getElementById('toggle-show-style-label'),
         choixBadge: !!document.getElementById('grid-voicing-badge'),
         anciennesBascules: !!document.getElementById('toggle-show-grid-octave') || !!document.getElementById('toggle-show-grid-voicing'),
     }));
     console.log(JSON.stringify(r));
-    check(r.plusDOnglets, 'plus aucun onglet à cliquer');
+    check(r.quatreOnglets, 'quatre onglets (Son, Affichage, Historique, À propos), une seule catégorie affichée à la fois');
     check(r.styleToggleGone, '« Style de jeu » reste absent');
     check(r.choixBadge && !r.anciennesBascules,
         'les deux bascules Octave/Renversement sont remplacées par un seul choix ordonné');

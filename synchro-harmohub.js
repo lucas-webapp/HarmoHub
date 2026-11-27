@@ -57,6 +57,7 @@ var REGLAGES_SYNCHRONISES = [
     'harmohubPdfMeasuresPerLine', 'harmohubPdfDiagrams',
     'harmohubStudioMode', 'harmohubRythmeDepart',
     'harmohub_feuille_structure',
+    'harmohub_tri_fichiers',          // l'ordre de « Mes morceaux » (nom / dernière modification), retenu d'un appareil à l'autre
 ];
 // Une trace de suppression sert à empêcher un appareil resté hors ligne de ramener un morceau effacé.
 // Au bout de six mois, on considère qu'aucun appareil n'est plus en retard à ce point.

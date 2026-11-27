@@ -1286,6 +1286,45 @@ function setCurrentSongId(id) {
 function loadFolders() {
     try { return JSON.parse(localStorage.getItem('harmohubFolders')) || []; } catch (e) { return []; }
 }
+// ---------- TRI DE « MES MORCEAUX » ----------
+// Retour utilisateur (26/11) : « permets-moi de trier les dossiers et les fichiers par ordre alphabétique ou par ordre de dernière modification ». Deux critères,
+// un sens ; le choix est retenu (et suit le compte, voir REGLAGES_SYNCHRONISES). La « dernière modification » est la date d'enregistrement affichée sur chaque
+// ligne ; celle d'un dossier est celle de son morceau le plus récent (un dossier vide n'en a pas : il passe après les autres, par nom). « Sans dossier » reste
+// en dernier quel que soit le tri.
+const CLE_TRI_FICHIERS = 'harmohub_tri_fichiers';
+function lireTriFichiers() {
+    let t = null;
+    try { t = JSON.parse(localStorage.getItem(CLE_TRI_FICHIERS)); } catch (e) { t = null; }
+    const critere = t && t.critere === 'nom' ? 'nom' : 'date';
+    const sens = t && (t.sens === 'asc' || t.sens === 'desc') ? t.sens : (critere === 'nom' ? 'asc' : 'desc');   // A → Z, mais récents d'abord
+    return { critere, sens };
+}
+function ecrireTriFichiers(tri) {
+    try { localStorage.setItem(CLE_TRI_FICHIERS, JSON.stringify(tri)); } catch (e) { /* stockage refusé : le choix ne sera pas retenu */ }
+}
+const comparerNoms = (a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true, sensitivity: 'base' });
+// Ordre des morceaux d'une liste. Égalité : l'autre critère, puis l'identifiant (le résultat ne dépend jamais de l'ordre d'arrivée).
+function trierMorceaux(songs, tri) {
+    const signe = tri.sens === 'desc' ? -1 : 1;
+    return songs.slice().sort((a, b) => {
+        const parNom = comparerNoms(a.name || '', b.name || '');
+        const parDate = (a.savedAt || 0) - (b.savedAt || 0);
+        const c = tri.critere === 'nom' ? (parNom * signe || -parDate) : (parDate * signe || parNom);
+        return c || String(a.id).localeCompare(String(b.id));
+    });
+}
+// Ordre des dossiers (leurs noms) : `songs` sert à connaître la date du plus récent morceau de chacun.
+function trierDossiers(folders, songs, tri) {
+    const signe = tri.sens === 'desc' ? -1 : 1;
+    const recent = (nom) => songs.reduce((m, s) => (s.folder === nom ? Math.max(m, s.savedAt || 0) : m), 0);
+    return folders.slice().sort((a, b) => {
+        if (tri.critere === 'nom') return comparerNoms(a, b) * signe;
+        const da = recent(a), db = recent(b);
+        if (!da !== !db) return da ? -1 : 1;                              // un dossier vide passe après, quel que soit le sens
+        return ((da - db) * signe) || comparerNoms(a, b);
+    });
+}
+
 function saveFolders(folders) {
     if (typeof cloudNoterDossiers === 'function') {
         try { cloudNoterDossiers(loadFolders(), folders); } catch (e) { console.error('Suivi de synchro impossible :', e); }
@@ -4724,6 +4763,7 @@ class HarmoHubApp {
         // Fenêtre Paramètres : toutes les sections (Son, Fichiers) se rendent ensemble à l'ouverture,
         // en une seule vue qui défile, sans onglet.
         document.getElementById('open-settings').onclick = () => this.openSettings();
+        this.brancherOngletsReglages();
         document.getElementById('toggle-sidebar').onclick = () => this.toggleSidebar();
 
         // Import/export ancrés sur le module Morceau (voir #song-export/#song-import dans index.html).
@@ -12218,9 +12258,10 @@ class HarmoHubApp {
         this.openSettings();
         // Le groupe se dessine de façon ASYNCHRONE (IndexedDB) : le faire défiler avant la fin, c'est viser une page encore trop courte
         // (vu en capture : le titre restait au milieu de la fenêtre au lieu d'être en haut).
+        this.afficherOngletReglages('historique');
         await this.renderHistoriquePanel();
-        const titre = document.getElementById('settings-title-historique');
-        if (titre && titre.scrollIntoView) titre.scrollIntoView({ block: 'start' });
+        const corps = document.querySelector('#settings-overlay .settings-content');
+        if (corps) corps.scrollTop = 0;
     }
 
     // « À propos » : la version de l'appli (celle des fichiers réellement chargés par cette page, lue sur la balise script.js — pas un numéro
@@ -12750,6 +12791,43 @@ class HarmoHubApp {
     // Un onglet à la fois (voir setSettingsTab) : Fichiers peut être long (beaucoup de morceaux/
     // dossiers), inutile de le faire défiler pour changer un simple réglage Son. Ajouter une future
     // section = un nouveau bouton .settings-tab + panneau + sa fonction de rendu, appelée ici.
+    // LES ONGLETS DES PARAMÈTRES (voir index.html). Une catégorie à la fois ; la dernière consultée est retenue sur cet appareil. Clavier : ← → ↑ ↓ passent d'un onglet
+    // à l'autre (et l'affichent), Début / Fin vont aux extrémités ; seul l'onglet affiché est dans l'ordre de tabulation.
+    brancherOngletsReglages() {
+        const onglets = [...document.querySelectorAll('#settings-overlay [data-settings-tab]')];
+        onglets.forEach((b, i) => {
+            b.onclick = () => this.afficherOngletReglages(b.dataset.settingsTab);
+            b.onkeydown = (e) => {
+                const touches = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
+                let cible = null;
+                if (e.key in touches) cible = onglets[(i + touches[e.key] + onglets.length) % onglets.length];
+                else if (e.key === 'Home') cible = onglets[0];
+                else if (e.key === 'End') cible = onglets[onglets.length - 1];
+                if (!cible) return;
+                e.preventDefault();
+                this.afficherOngletReglages(cible.dataset.settingsTab);
+                cible.focus();
+            };
+        });
+    }
+
+    afficherOngletReglages(nom) {
+        const onglets = [...document.querySelectorAll('#settings-overlay [data-settings-tab]')];
+        if (!onglets.length) return;
+        if (!onglets.some(b => b.dataset.settingsTab === nom)) nom = onglets[0].dataset.settingsTab;
+        onglets.forEach(b => {
+            const actif = b.dataset.settingsTab === nom;
+            b.setAttribute('aria-selected', String(actif));
+            b.tabIndex = actif ? 0 : -1;
+            const page = document.getElementById(b.getAttribute('aria-controls'));
+            if (page) page.hidden = !actif;
+        });
+        this._ongletReglages = nom;
+        try { localStorage.setItem('harmohub_onglet_reglages', nom); } catch (e) { /* stockage refusé : l'onglet ne sera pas retenu */ }
+        const corps = document.querySelector('#settings-overlay .settings-content');
+        if (corps) corps.scrollTop = 0;
+    }
+
     openSettings() {
         this.settingsOpen = true;
         this._histMessage = null; // un message de restauration ne survit pas à la fermeture des Paramètres
@@ -12766,6 +12844,9 @@ class HarmoHubApp {
         this.renderLookPanel();
         this.renderHistoriquePanel();
         this.renderAproposPanel();
+        let dernier = this._ongletReglages;
+        if (!dernier) { try { dernier = localStorage.getItem('harmohub_onglet_reglages'); } catch (e) { dernier = null; } }
+        this.afficherOngletReglages(dernier || 'son');
         // Fenêtre modale : le focus y entre, Tab y reste, et revient à la roue à la fermeture (bug E-01).
         pieger(document.getElementById('settings-overlay'), document.getElementById('open-settings'));
     }
@@ -14331,7 +14412,8 @@ class HarmoHubApp {
         const referenced = new Set(songs.map(s => s.folder).filter(Boolean));
         const merged = [...new Set([...folders, ...referenced])];
         if (merged.length !== folders.length) { folders = merged; saveFolders(folders); }
-        folders = folders.slice().sort((a, b) => a.localeCompare(b, 'fr'));
+        const tri = lireTriFichiers();
+        folders = trierDossiers(folders, songs, tri);
 
         const currentId = getCurrentSongId();
 
@@ -14365,8 +14447,9 @@ class HarmoHubApp {
             return;
         }
 
-        const groups = folders.map(name => ({ name, songs: songs.filter(s => s.folder === name) }));
-        groups.push({ name: null, songs: songs.filter(s => !s.folder) });
+        const songsTries = trierMorceaux(songs, tri);
+        const groups = folders.map(name => ({ name, songs: songsTries.filter(s => s.folder === name) }));
+        groups.push({ name: null, songs: songsTries.filter(s => !s.folder) });
 
         const folderOptions = (current) => {
             let opts = `<option value=""${!current ? ' selected' : ''}>Sans dossier</option>`;
@@ -14384,7 +14467,19 @@ class HarmoHubApp {
         const fmtDate = formaterDateEnregistrement;
         const chordCount = (song) => (song.sections || []).reduce((n, sec) => n + (sec.chords ? sec.chords.length : 0), 0);
 
-        host.innerHTML = toolbar + groups.filter(g => g.name !== null || g.songs.length > 0).map(g => `
+        // Le tri : deux critères (un groupe segmenté, comme les autres choix de la fenêtre) et le sens, dont le libellé dit ce qu'il fait.
+        const SENS = { nom: { asc: 'A → Z', desc: 'Z → A' }, date: { desc: 'Récents d\'abord', asc: 'Anciens d\'abord' } };
+        const triHtml = `
+            <div class="files-tri">
+                <span class="files-tri-label" id="files-tri-label">Trier</span>
+                <div id="files-tri" class="settings-seg" role="radiogroup" aria-labelledby="files-tri-label">
+                    <button type="button" role="radio" data-tri="nom" aria-checked="${tri.critere === 'nom'}" title="Dossiers et morceaux par ordre alphabétique">Nom</button>
+                    <button type="button" role="radio" data-tri="date" aria-checked="${tri.critere === 'date'}" title="Dossiers et morceaux par date de dernière modification">Modifié</button>
+                </div>
+                <button type="button" id="files-tri-sens" class="btn-sec" data-sens="${tri.sens}" title="Inverser l'ordre : ${SENS[tri.critere][tri.sens === 'asc' ? 'desc' : 'asc']}" aria-label="Ordre : ${SENS[tri.critere][tri.sens]}. Inverser">${SENS[tri.critere][tri.sens]}</button>
+            </div>`;
+
+        host.innerHTML = toolbar + triHtml + groups.filter(g => g.name !== null || g.songs.length > 0).map(g => `
             <details class="file-group" open>
                 <summary>
                     <svg class="icon chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
@@ -14454,7 +14549,28 @@ class HarmoHubApp {
         this.wireFilesToolbar();
     }
 
+    // Le tri de « Mes morceaux » : un critère (nom, date) et un sens. Changer de critère prend son sens naturel (A → Z, récents d'abord) ; le bouton d'à côté l'inverse.
+    brancherTriFichiers() {
+        document.querySelectorAll('#files-tri [data-tri]').forEach(b => {
+            b.onclick = () => {
+                const t = lireTriFichiers();
+                if (t.critere === b.dataset.tri) return;
+                ecrireTriFichiers({ critere: b.dataset.tri, sens: b.dataset.tri === 'nom' ? 'asc' : 'desc' });
+                this.renderFilesPanel();
+                const actif = document.querySelector(`#files-tri [data-tri="${b.dataset.tri}"]`); if (actif) actif.focus();
+            };
+        });
+        const sens = document.getElementById('files-tri-sens');
+        if (sens) sens.onclick = () => {
+            const t = lireTriFichiers();
+            ecrireTriFichiers({ critere: t.critere, sens: t.sens === 'asc' ? 'desc' : 'asc' });
+            this.renderFilesPanel();
+            const nouveau = document.getElementById('files-tri-sens'); if (nouveau) nouveau.focus();
+        };
+    }
+
     wireFilesToolbar() {
+        this.brancherTriFichiers();
         const newBtn = document.getElementById('new-folder-btn');
         if (newBtn) newBtn.onclick = () => this.startInlineCreateFolder();
         // N'existe que s'il y a effectivement des titres en double (voir renderFilesPanel) : un bouton

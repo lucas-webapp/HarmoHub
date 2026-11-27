@@ -2,7 +2,7 @@
 // « Écouter en éditant ». Le son est factice dans la VM : on lit le NIVEAU DE SORTIE (Tone.js), l'état de l'appli et les appels demandés, on n'écoute rien.
 import { test, expect } from '../support/fixtures';
 import {
-  C_AM_F_G, estMobile, appuyer, ouvrir, fermer, deplierAvancees, interrupteur, curseur, liste, NOM, ecouterEnEditant, sonMetronome,
+  C_AM_F_G, estMobile, appuyer, ouvrirSur, fermer, deplierAvancees, interrupteur, curseur, liste, NOM, ecouterEnEditant, sonMetronome,
   lireStockage, lireEtat, sortie,
 } from './aide-parametres';
 import { vitesseMax, espionnerClics, nombreDeClics, boutonLecture, attendreFinDeLecture, enLecture } from '../lecture/aide-lecture';
@@ -14,7 +14,7 @@ const valeurAffichee = (l: import('@playwright/test').Locator) => l.locator('xpa
 test.describe('Son : volumes @parametres', () => {
   test('« Volume général » : 100 par défaut, le curseur règle la sortie (0 dB à 100, plus bas ensuite, muet à 0) et le nombre affiché suit @critique', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     const c = curseur(page, 'Volume général');
     await expect(c).toHaveValue('100');
     await expect(valeurAffichee(c)).toContainText('100');
@@ -41,7 +41,7 @@ test.describe('Son : volumes @parametres', () => {
 
   test('« Volume général » : de 0 à 100, ne dépasse pas ses bornes', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     for (const nom of ['Volume général', 'Volume du métronome']) {
       const c = curseur(page, nom);
       await expect(c).toHaveAttribute('min', '0');
@@ -51,7 +51,7 @@ test.describe('Son : volumes @parametres', () => {
 
   test('« Volume du métronome » : 80 par défaut, le curseur règle le niveau du métronome et le nombre affiché suit', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     const c = curseur(page, 'Volume du métronome');
     await expect(c).toHaveValue('80');
     await expect(valeurAffichee(c)).toContainText('80');
@@ -64,7 +64,7 @@ test.describe('Son : volumes @parametres', () => {
 
   test('chaque volume est retrouvé après un rechargement : curseur, nombre affiché et sortie @critique', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     await curseur(page, 'Volume général').fill('40');
     await curseur(page, 'Volume du métronome').fill('25');
     expect(await lireStockage(page, 'harmohubGeneralVolume')).toBe('40');
@@ -75,7 +75,7 @@ test.describe('Son : volumes @parametres', () => {
     expect(await lireEtat(page, 'generalVolumePercent')).toBe(40);
     expect(await lireEtat(page, 'metronomeVolumePercent')).toBe(25);
     await expect.poll(async () => (await sortie(page)).db!).toBeCloseTo(avant, 1);
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     await expect(curseur(page, 'Volume général')).toHaveValue('40');
     await expect(curseur(page, 'Volume du métronome')).toHaveValue('25');
     await expect(valeurAffichee(curseur(page, 'Volume général'))).toContainText('40');
@@ -92,7 +92,7 @@ test.describe('Son : lecture et écoute @parametres', () => {
     await attendreFinDeLecture(page);
     expect(await nombreDeClics(page)).toBe(4);   // décompte seul (métronome coupé par défaut)
 
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     await appuyer(page, interrupteur(page, NOM.decompte));
     await expect(interrupteur(page, NOM.decompte)).toHaveAttribute('aria-checked', 'false');
     expect(await lireEtat(page, 'metronomeCountIn')).toBe(false);
@@ -107,7 +107,7 @@ test.describe('Son : lecture et écoute @parametres', () => {
 
   test('« Son du métronome » : cinq sonorités, le choix est retenu, et la lecture sonne avec chacune', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     await deplierAvancees(page);
     const l = sonMetronome(page);
     await expect(l.locator('option')).toHaveText(['Clic classique', 'Baguette', 'Clave', 'Cloche douce', 'Tic sec']);
@@ -131,14 +131,14 @@ test.describe('Son : lecture et écoute @parametres', () => {
     await page.reload();
     await page.waitForFunction(() => !!(window as any).app);
     expect(await lireEtat(page, 'metronomeSoundKey')).toBe('bell');
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     await deplierAvancees(page);
     await expect(sonMetronome(page).locator('option:checked')).toHaveText('Cloche douce');
   });
 
   test('« Écouter en éditant » et « Son au déplacement » : allumés au départ, ils s\'éteignent et se rallument, et le choix est retenu', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     await deplierAvancees(page);
     await expect(ecouterEnEditant(page)).toHaveAttribute('aria-checked', 'true');
     await expect(interrupteur(page, NOM.sonDeplacement)).toHaveAttribute('aria-checked', 'true');
@@ -152,7 +152,7 @@ test.describe('Son : lecture et écoute @parametres', () => {
     await page.waitForFunction(() => !!(window as any).app);
     expect(await lireEtat(page, 'seqEditAudio')).toBe(false);
     expect(await lireEtat(page, 'sonDeplacementSeq')).toBe(false);
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     await deplierAvancees(page);
     await expect(ecouterEnEditant(page)).toHaveAttribute('aria-checked', 'false');
     await expect(interrupteur(page, NOM.sonDeplacement)).toHaveAttribute('aria-checked', 'false');
@@ -184,7 +184,7 @@ test.describe('Son : sélection et rythme de départ @parametres @ordinateur', (
     await page.keyboard.press('ArrowRight');
     await expect.poll(() => accordsJoues(page)).toBe(1);   // et la flèche aussi
 
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     await interrupteur(page, NOM.jouerSelection).click();
     await expect(interrupteur(page, NOM.jouerSelection)).toHaveAttribute('aria-checked', 'false');
     expect(await lireEtat(page, 'autoplaySelect')).toBe(false);
@@ -201,7 +201,7 @@ test.describe('Son : sélection et rythme de départ @parametres @ordinateur', (
 
   test('« Rythme des nouveaux accords » : un accord ajouté prend le rythme choisi ; ceux déjà écrits gardent le leur @critique', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: [{ root: 'C', quality: '' }, { root: 'A', quality: 'min' }] });
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     await expect(liste(page, 'Rythme des nouveaux accords').locator('option')).toHaveText(['Une note tenue sur le premier temps', 'Des notes tenues sur tous les temps']);
     await liste(page, 'Rythme des nouveaux accords').selectOption('noire_maintenu');
     await fermer(page);
@@ -221,7 +221,7 @@ test.describe('Son : sélection et rythme de départ @parametres @ordinateur', (
 
     // retour au rythme d'usine : le suivant est de nouveau « une note tenue »
     await page.keyboard.press('Escape');
-    await ouvrir(page);
+    await ouvrirSur(page, 'Son');
     await liste(page, 'Rythme des nouveaux accords').selectOption('held');
     await fermer(page);
     await taper(page, 'Em');

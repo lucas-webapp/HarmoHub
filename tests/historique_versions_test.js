@@ -206,6 +206,7 @@ const graine = ({ src, avec }) => {
     await transposerHaut(p);
     await attendreVersion(p, 's1', 'avant-transposition');
     await p.click('#open-settings');
+    await p.click('#settings-tab-historique');   // 26/11 : les réglages sont rangés par onglet, l'historique a le sien
     await p.waitForSelector('#settings-panel-historique .hist-carte', { timeout: 4000 });
     const panneau = await p.evaluate(() => ({
         titre: document.getElementById('settings-title-historique').textContent,
@@ -250,6 +251,7 @@ const graine = ({ src, avec }) => {
     const vOrig = await attendreVersion(p, 's1', 'avant-transposition');
     const transpose = await accordsTampon(p);
     await p.click('#open-settings');
+    await p.click('#settings-tab-historique');   // 26/11 : les réglages sont rangés par onglet, l'historique a le sien
     await p.waitForSelector('#settings-panel-historique [data-restaurer]');
     await p.click(`[data-restaurer="${vOrig.id}"]`);
     await p.waitForTimeout(600);
@@ -273,6 +275,7 @@ const graine = ({ src, avec }) => {
     await ajouterAccord(p, 'G#');
     await p.evaluate(() => HistoriqueVersions.ajouter({ songId: 's2', songName: 'Autre morceau', motif: 'auto', libelle: 'v2', charge: { sections: [{ title: 'Ancien pont', chords: [{ root: 'G', quality: 'maj', beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' }] }], root: 'G', mode: 'maj', timeSig: '4/4', groove: 'straight', bpm: 77 } }));
     await p.click('#open-settings');
+    await p.click('#settings-tab-historique');   // 26/11 : les réglages sont rangés par onglet, l'historique a le sien
     await p.waitForSelector('#hist-morceau');
     await p.selectOption('#hist-morceau', 's2');
     await p.waitForSelector('#hist-liste [data-restaurer]');
@@ -291,6 +294,7 @@ const graine = ({ src, avec }) => {
     await attendreVersion(p, 's1', 'avant-suppression-morceau');
     check(!(await p.evaluate(() => JSON.parse(localStorage.getItem('harmohubSongs')).some(x => x.id === 's1'))), 'C. le morceau « Démo » est supprimé de la bibliothèque');
     await p.click('#open-settings');
+    await p.click('#settings-tab-historique');   // 26/11 : les réglages sont rangés par onglet, l'historique a le sien
     await p.waitForSelector('#hist-morceau');
     const listeSuppr = await p.evaluate(() => [...document.querySelectorAll('#hist-morceau option')].map(o => o.textContent));
     check(listeSuppr.some(t => /Démo.*supprimé/.test(t)), `le morceau supprimé reste dans l'historique, marqué (${listeSuppr.find(t => /supprimé/.test(t))})`);
@@ -310,6 +314,7 @@ const graine = ({ src, avec }) => {
     const vSans = await attendreVersion(p, '', 'avant-transposition');
     check(!!vSans && vSans.songId === '', 'un tampon qui n\'a jamais eu de nom a aussi son historique (c\'est là qu\'un plantage coûte le plus)');
     await p.click('#open-settings');
+    await p.click('#settings-tab-historique');   // 26/11 : les réglages sont rangés par onglet, l'historique a le sien
     await p.waitForSelector('#hist-morceau');
     check(await p.evaluate(() => document.getElementById('hist-morceau').selectedOptions[0].textContent.startsWith('Morceau sans nom')), '…listé sous « Morceau sans nom »');
     await p.click('#hist-liste [data-restaurer]');
@@ -350,6 +355,7 @@ const graine = ({ src, avec }) => {
     await p.waitForTimeout(400);
     check((await accordsEnregistres(p)).length === 7, '…et Enregistrer fonctionne comme avant (7 accords écrits dans le morceau)');
     await p.click('#open-settings');
+    await p.click('#settings-tab-historique');   // 26/11 : les réglages sont rangés par onglet, l'historique a le sien
     await p.waitForSelector('#settings-panel-historique');
     await p.waitForTimeout(300);
     check(await p.evaluate(() => !!document.getElementById('hist-indispo') && /Enregistrer fonctionne/.test(document.getElementById('hist-indispo').textContent)), '…et les Paramètres le DISENT, sans que l\'enregistrement soit en cause');
@@ -381,6 +387,7 @@ const graine = ({ src, avec }) => {
     p = await ouvrir({ nom: 'H: ', viewport: { width: 390, height: 844 } });
     await ajouterAccord(p, 'A#'); await p.click('#tb-save'); await attendreVersion(p, 's1', 'enregistre'); // lot 10a : Enregistrer est dans la barre du haut au téléphone aussi
     await p.evaluate(() => window.app.openSettings());
+    await p.click('#settings-tab-historique');   // 26/11 : les réglages sont rangés par onglet (ici une rangée de quatre onglets de 44 px)
     await p.waitForSelector('#settings-panel-historique .hist-carte');
     const tel = await p.evaluate(() => { const c = document.querySelector('.settings-content'); const bt = document.querySelector('#hist-liste [data-restaurer]').getBoundingClientRect(); return { deborde: c.scrollWidth - c.clientWidth, h: bt.height, ds: bt.right <= innerWidth }; });
     check(tel.deborde <= 1 && tel.ds, `téléphone : le panneau ne déborde pas (${tel.deborde}px) et le bouton Restaurer reste à l'écran`);

@@ -5331,7 +5331,9 @@ body.impression-structure #structure-print-zone { display: block; }
     .tb-centre { display: flex; align-items: center; justify-content: center; min-width: 0; }
     /* Le titre se COMPRESSE quand la place manque (jusqu'à 128px) : sans cela un titre de 280px, avec Enregistrer et son voyant, dépassait de sa
        colonne et passait sous les onglets (mesuré), cassant le centrage qu'on cherche. */
-    .tb-morceau { display: flex; flex: 0 1 auto; position: relative; min-width: 0; }
+    /* `min-width: 128px` (et non 0) : le bouton du titre ne descend pas sous 128px ; si son conteneur pouvait rétrécir plus bas, le bouton DÉBORDAIT et passait sous
+       Enregistrer dès que le voyant s'allongeait (« Enregistré à 11:45 » à la place de « Nouveau morceau »). Seul le texte du voyant, lui, se coupe (« … »). */
+    .tb-morceau { display: flex; flex: 0 1 auto; position: relative; min-width: 128px; }
     .tb-save { display: inline-flex; }
     .tb-etat { display: inline-flex; }
     /* Le logo prend la forme des autres boutons : « pas de bouton rond ici ». */
@@ -7994,4 +7996,34 @@ body.struct-glisse, body.struct-glisse #structure-panel * { cursor: grabbing; us
     #structure-panel .struct-actions { flex: 1 0 100%; justify-content: flex-end; gap: 8px; }
     #structure-panel .struct-actions .icon-btn { width: 44px; height: 44px; }
     #structure-panel .struct-poignee { width: 28px; font-size: 1.25rem; }
+}
+
+/* ---- « Mes morceaux » : le tri (nom / modifié + sens). Une rangée sous la barre d'outils ; le sens est un bouton de la jauge, son libellé dit ce qu'il fait. ---- */
+.files-tri { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -4px 0 12px; }
+.files-tri-label { font-size: var(--fs-sm); color: var(--text-muted); }
+.files-tri .btn-sec { flex: none; min-width: 0; padding: 6px 12px; font-size: var(--fs-sm); }
+
+/* ---- Paramètres : onglets par catégorie (26/11). Colonne à gauche (icône + nom), une catégorie à la fois ; une rangée au-dessus sur téléphone. Gabarit : boutons de 32 px
+   (44 px au téléphone), 7 px d'arrondi, sélection GRISE claire (jamais d'aplat vif), comme le groupe segmenté des réglages. Bloc en fin de fichier : la cascade le laisse gagner. ---- */
+#settings-overlay .settings-tabs { flex: 0 0 150px; display: flex; flex-direction: column; gap: 4px; padding: 14px 10px; border-right: 1px solid var(--border); overflow-y: auto; }
+#settings-overlay .settings-tab {
+    flex: none; min-width: 0; height: var(--bouton-h, 32px); display: inline-flex; align-items: center; justify-content: flex-start; gap: 9px;
+    padding: 0 10px; border: 1px solid transparent; border-radius: var(--rayon-bouton, 7px); background: transparent;
+    color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; text-align: left;
+}
+#settings-overlay .settings-tab .icon { width: 16px; height: 16px; flex: none; }
+#settings-overlay .settings-tab:hover { color: var(--text-main); background: var(--fond-bouton-sombre-survol); }
+#settings-overlay .settings-tab[aria-selected="true"] { color: #fff; border-color: rgba(255, 255, 255, .55); background: var(--fond-bouton-sombre-survol); }
+#settings-overlay .settings-page[hidden] { display: none; }
+@media (max-width: 899px) {
+    #settings-overlay .settings-body { flex-direction: column; }
+    #settings-overlay .settings-tabs { flex: none; flex-direction: row; gap: 6px; padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+    #settings-overlay .settings-tabs::-webkit-scrollbar { display: none; }
+    #settings-overlay .settings-tab { height: 44px; padding: 0 12px; gap: 7px; }
+}
+/* Sous 430 px les quatre onglets ne tiennent plus avec leur icône : le nom suffit (il est déjà dans le texte du bouton). */
+@media (max-width: 430px) {
+    #settings-overlay .settings-tabs { padding: 10px; gap: 4px; }
+    #settings-overlay .settings-tab { padding: 0 10px; }
+    #settings-overlay .settings-tab .icon { display: none; }
 }

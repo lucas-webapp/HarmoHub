@@ -4,7 +4,7 @@
 import { test, expect } from '../support/fixtures';
 import type { Page } from '@playwright/test';
 import {
-  C_AM_F_G, estMobile, appuyer, ouvrir, fermer, deplierAvancees, interrupteur, curseur, liste, choix, NOM, reperesDeTemps, lireStockage,
+  C_AM_F_G, estMobile, appuyer, ouvrir, ouvrirSur, fermer, deplierAvancees, interrupteur, curseur, liste, choix, NOM, reperesDeTemps, lireStockage,
   degresAffiches, fonctionsAffichees, reperesAffiches, mentions,
 } from './aide-parametres';
 import { bibliotheque, ouvrirMesMorceaux, ligne } from '../fichiers/aide-fichiers';
@@ -21,7 +21,7 @@ test.describe('Affichage de la grille @parametres', () => {
   test('« Degrés » : allumé au départ, éteint il retire les chiffres romains de la grille, rallumé il les rend @critique', async ({ ouvrirAppli, garde }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     expect(await degresAffiches(page)).toEqual(['I', 'vi', 'IV', 'V']);
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     await appuyer(page, interrupteur(page, NOM.degres));
     await expect(interrupteur(page, NOM.degres)).toHaveAttribute('aria-checked', 'false');
     await expect.poll(() => degresAffiches(page)).toEqual([]);
@@ -34,7 +34,7 @@ test.describe('Affichage de la grille @parametres', () => {
   test('« Fonction harmonique » (options avancées) : éteinte au départ ; allumée, T / SD / D s\'affichent sous les degrés, « ? » quand elle n\'est pas sûre', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     expect(await fonctionsAffichees(page)).toEqual([]);
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     await deplierAvancees(page);
     await appuyer(page, interrupteur(page, NOM.fonction));
     await expect(interrupteur(page, NOM.fonction)).toHaveAttribute('aria-checked', 'true');
@@ -46,7 +46,7 @@ test.describe('Affichage de la grille @parametres', () => {
   test('« Repères de temps » (options avancées) : un repère par mesure au départ, un par temps (trois de plus par mesure) en choisissant « Tous les temps »', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });   // 4 mesures de 4 temps
     expect(await reperesAffiches(page)).toBe(4);
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     await deplierAvancees(page);
     await expect(reperesDeTemps(page).locator('option')).toHaveText(['Milieu de mesure', 'Tous les temps']);
     await reperesDeTemps(page).selectOption({ label: 'Tous les temps' });
@@ -57,7 +57,7 @@ test.describe('Affichage de la grille @parametres', () => {
 
   test('« Position d\'accord » : « Masquée » ne montre rien, « Octave seule » montre O3, « Octave + renversement » montre aussi R1, D2… @critique', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ reglages: morceauRenverse() });
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     const l = liste(page, 'Position d\'accord');
     await expect(l.locator('option')).toHaveText(['Masquée', 'Octave seule (O3)', 'Octave + renversement (O3-R1)']);
     expect(await mentions(page)).toEqual(['O3-R1', 'O3-D2', 'O3-R2', 'O3']);   // choix d'usine : octave + renversement
@@ -77,7 +77,7 @@ test.describe('Affichage de la grille @parametres', () => {
     await page.keyboard.press('Escape');
     await expect(liste_).toBeHidden();
 
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     await appuyer(page, interrupteur(page, NOM.dateModif));
     await expect(interrupteur(page, NOM.dateModif)).toHaveAttribute('aria-checked', 'false');
     await fermer(page);
@@ -92,7 +92,7 @@ test.describe('Séquenceur : affichage @parametres @ordinateur', () => {
   test('« Noms des rythmes » : allumé, chaque rythme écrit son nom ; éteint, seule la vignette reste (les boutons rétrécissent) @critique', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     // l'état d'usine dépend de la largeur (allumé au-dessus de 1340 px, éteint en dessous : iPad en paysage = 1194 px) : on part de « allumé » dans tous les cas
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     if ((await interrupteur(page, NOM.nomsRythmes).getAttribute('aria-checked')) !== 'true') await interrupteur(page, NOM.nomsRythmes).click();
     await expect(interrupteur(page, NOM.nomsRythmes)).toHaveAttribute('aria-checked', 'true');
     await fermer(page);
@@ -100,7 +100,7 @@ test.describe('Séquenceur : affichage @parametres @ordinateur', () => {
     const nom = rythme(page, 'plaque').getByText('Plaqué', { exact: true });
     await expect(nom).toBeVisible();
     const largeurAvant = (await rythme(page, 'plaque').boundingBox())!.width;
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     await interrupteur(page, NOM.nomsRythmes).click();
     await expect(interrupteur(page, NOM.nomsRythmes)).toHaveAttribute('aria-checked', 'false');
     await expect(nom).toBeHidden();
@@ -115,7 +115,7 @@ test.describe('Séquenceur : affichage @parametres @ordinateur', () => {
     await ouvrirSequenceur(page);
     const hauteur = () => grille(page).locator('.sq-case').first().evaluate(e => Math.round(e.getBoundingClientRect().height));
     expect(await hauteur()).toBe(26);
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     const c = curseur(page, 'Barres du séquenceur');
     await expect(c).toHaveValue('26');
     await expect(c).toHaveAttribute('min', '22');
@@ -149,7 +149,7 @@ test.describe('Apparence : verre dépoli @parametres', () => {
   test('« Verre dépoli » : éteint au départ (fond uni) ; allumé, la page prend un fond coloré ; éteint de nouveau, le fond uni revient @critique', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     expect(await fond(page)).toMatchObject({ verre: null, image: 'none' });
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     await appuyer(page, interrupteur(page, NOM.verre));
     await expect(interrupteur(page, NOM.verre)).toHaveAttribute('aria-checked', 'true');
     await expect.poll(async () => (await fond(page)).verre).toBe('1');
@@ -161,7 +161,7 @@ test.describe('Apparence : verre dépoli @parametres', () => {
 
   test('« Couleur du fond » : sept couleurs, « Aurore » au départ, chacune donne un fond différent quand le verre est allumé', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     const groupe = page.getByRole('dialog', { name: 'Paramètres' }).getByRole('radiogroup', { name: 'Couleur du fond' });
     await expect(groupe.getByRole('radio')).toHaveText(['', '', '', '', '', '', '']);   // des pastilles : le nom est dans l'étiquette
     await expect(groupe.getByRole('radio')).toHaveCount(7);

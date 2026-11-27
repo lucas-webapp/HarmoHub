@@ -4,7 +4,7 @@ import {
   test, expect, C_AM_F_G, emailDe, connecter, attendreSynchronise, documentCloud,
 } from '../synchro/aide-synchro';
 import type { Page } from '@playwright/test';
-import { appuyer, ouvrir, fermer, interrupteur, curseur, choix, NOM, lireStockage as lireStockageBrut, lireEtat } from './aide-parametres';
+import { appuyer, ouvrir, allerA, fermer, interrupteur, curseur, choix, NOM, lireStockage as lireStockageBrut, lireEtat } from './aide-parametres';
 
 // Sur un appareil qui vient de se connecter, la page se recharge d'elle-même (mesuré : une navigation de la page principale environ une demi-seconde
 // après la connexion, sur Chromium comme sur WebKit). Une lecture qui tombe pile dessus échoue avec « Execution context was destroyed » : on rend alors
@@ -32,8 +32,10 @@ test.describe('Réglages et compte @parametres', () => {
     const uid = await connecter(a, email);
     await attendreSynchronise(a);
     await ouvrir(a);
+    await allerA(a, 'Son');
     await appuyer(a, interrupteur(a, NOM.decompte));
     await curseur(a, 'Volume général').fill('55');
+    await allerA(a, 'Affichage');
     await appuyer(a, interrupteur(a, NOM.degres));
     await fermer(a);
     await expect.poll(() => reglagesDuCloud(uid), { timeout: 20_000 }).toMatchObject({ harmohubMetronomeCountIn: '0', harmohubGeneralVolume: '55', harmohubShowRomanNumerals: '0' });
@@ -51,8 +53,10 @@ test.describe('Réglages et compte @parametres', () => {
     expect(await lireEtat(b, 'generalVolumePercent')).toBe(55);
     expect(await lireEtat(b, 'metronomeCountIn')).toBe(false);
     await ouvrir(b);
+    await allerA(b, 'Son');
     await expect(curseur(b, 'Volume général')).toHaveValue('55');
     await expect(interrupteur(b, NOM.decompte)).toHaveAttribute('aria-checked', 'false');
+    await allerA(b, 'Affichage');
     await expect(interrupteur(b, NOM.degres)).toHaveAttribute('aria-checked', 'false');
   });
 
@@ -62,9 +66,11 @@ test.describe('Réglages et compte @parametres', () => {
     const uid = await connecter(a, email);
     await attendreSynchronise(a);
     await ouvrir(a);
+    await allerA(a, 'Affichage');
     await appuyer(a, interrupteur(a, NOM.verre));
     await appuyer(a, choix(a, 'Couleur du fond', 'Rose'));
     await appuyer(a, choix(a, 'Touches du piano', 'Notes'));
+    await allerA(a, 'Son');
     await curseur(a, 'Volume du métronome').fill('33');   // un réglage qui voyage : sert de témoin que l'envoi a bien eu lieu
     await fermer(a);
     await expect.poll(() => reglagesDuCloud(uid), { timeout: 20_000 }).toMatchObject({ harmohubMetronomeVolume: '33' });
@@ -101,7 +107,9 @@ test.describe('Réglages et compte @parametres', () => {
     await connecter(page, emailDe(testInfo));
     await attendreSynchronise(page);
     await ouvrir(page);
+    await allerA(page, 'Son');
     await curseur(page, 'Volume général').fill('45');
+    await allerA(page, 'Affichage');
     await appuyer(page, interrupteur(page, NOM.verre));
     await fermer(page);
     await expect.poll(() => lireStockage(page, 'harmohubGeneralVolume')).toBe('45');

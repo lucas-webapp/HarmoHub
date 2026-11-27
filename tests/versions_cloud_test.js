@@ -137,6 +137,7 @@ const texteDe = (brut) => { if (!brut) return ''; const s = JSON.parse(brut); re
     console.log('\n=== D. Paramètres › Historique au téléphone : les versions du morceau prises sur l\'ordinateur ===');
     await B.p.click('#tab-grille');
     await B.p.click('#open-settings');
+    await B.p.click('#settings-tab-historique');   // 26/11 : les réglages sont rangés par onglet, l'historique a le sien
     check(await attendre(() => B.p.evaluate(() => document.querySelectorAll('#hist-liste [data-version]').length >= 5)), 'B voit les versions du morceau gardées sur l\'ordinateur (au moins les 5 du cloud)');
     const textes = await B.p.evaluate(() => [...document.querySelectorAll('#hist-liste [data-version]')].map(c => c.textContent.replace(/\s+/g, ' ')));
     check(textes.filter(t => /autre appareil/.test(t)).length >= 5, `elles sont marquées « autre appareil » (${textes.filter(t => /autre appareil/.test(t)).length})`);
@@ -166,6 +167,7 @@ const texteDe = (brut) => { if (!brut) return ''; const s = JSON.parse(brut); re
     check('s1' in enAttente && !doc().morceau.some(v => v.id === derniereA.id), 'réseau coupé : la version n\'est pas au cloud, elle est notée en attente');
     nuage.coupe.delete('A');
     await A.p.click('#open-settings');            // ouvrir l'historique relance ce qui attend
+    await A.p.click('#settings-tab-historique');   // 26/11 : les réglages sont rangés par onglet, l'historique a le sien
     check(await attendre(() => doc().morceau.some(v => v.id === derniereA.id)), 'réseau revenu : elle part (ici, à l\'ouverture de l\'historique)');
     check(await attendre(() => A.p.evaluate(() => !('s1' in JSON.parse(localStorage.getItem('harmohub_versions_a_envoyer') || '{}')))), '…et n\'est plus en attente');
     // Sans doublon à l'import : deux appareils qui ont gardé le MÊME contenu (après une synchro) sous deux identifiants n'en font qu'une.

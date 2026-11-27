@@ -2,18 +2,27 @@
 // Ordinateur et téléphone (la fenêtre est la même ; au téléphone elle occupe l'écran et défile).
 import { test, expect } from '../support/fixtures';
 import {
-  C_AM_F_G, estMobile, appuyer, boutonParametres, fenetre, ouvrir, fermer, deplierAvancees, interrupteur, curseur, liste, choix, NOM, ecouterEnEditant, sonMetronome,
+  C_AM_F_G, estMobile, appuyer, boutonParametres, fenetre, ouvrir, fermer, allerA, ongletReglages, deplierAvancees, interrupteur, curseur, liste, choix, NOM, ecouterEnEditant, sonMetronome,
   reperesDeTemps, lireStockage, lireEtat,
 } from './aide-parametres';
 
 test.describe('Fenêtre Paramètres @parametres', () => {
-  test('la roue ouvre la fenêtre « Paramètres » : cinq sections, dans l\'ordre, et un bouton Fermer @critique', async ({ ouvrirAppli, garde }) => {
+  test('la roue ouvre la fenêtre « Paramètres » : quatre onglets, dans l\'ordre, une catégorie à la fois, et un bouton Fermer @critique', async ({ ouvrirAppli, garde }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await expect(fenetre(page)).toBeHidden();
     await expect(boutonParametres(page)).toHaveAccessibleName('Paramètres');
     const f = await ouvrir(page);
     await expect(f.getByRole('heading', { level: 2 })).toHaveText('Paramètres');
-    await expect(f.getByRole('heading', { level: 3 })).toHaveText(['Son', 'Affichage', 'Apparence', 'Historique et récupération', 'À propos']);
+    await expect(f.getByRole('tablist', { name: 'Catégories de réglages' }).getByRole('tab')).toHaveText(['Son', 'Affichage', 'Historique', 'À propos']);
+    // appareil neuf : l'onglet « Son » est affiché, et lui seul (les autres catégories sont masquées, pas empilées à la suite)
+    await expect(ongletReglages(page, 'Son')).toHaveAttribute('aria-selected', 'true');
+    await expect(f.getByRole('heading', { level: 3 })).toHaveText(['Son']);
+    await allerA(page, 'Affichage');
+    await expect(f.getByRole('heading', { level: 3 })).toHaveText(['Affichage', 'Apparence']);
+    await allerA(page, 'Historique');
+    await expect(f.getByRole('heading', { level: 3 })).toHaveText(['Historique et récupération']);
+    await allerA(page, 'À propos');
+    await expect(f.getByRole('heading', { level: 3 })).toHaveText(['À propos']);
     await expect(f.getByRole('button', { name: 'Fermer' })).toBeVisible();
     expect(garde.bloquees).toEqual([]);
   });
@@ -21,8 +30,8 @@ test.describe('Fenêtre Paramètres @parametres', () => {
   test('chaque réglage part de sa valeur d\'usine (appareil neuf) @critique', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await ouvrir(page);
+    await allerA(page, 'Son');
     await deplierAvancees(page);
-    // Son
     await expect(curseur(page, 'Volume général')).toHaveValue('100');
     await expect(curseur(page, 'Volume du métronome')).toHaveValue('80');
     await expect(interrupteur(page, NOM.sonDeplacement)).toHaveAttribute('aria-checked', 'true');
@@ -31,7 +40,8 @@ test.describe('Fenêtre Paramètres @parametres', () => {
     await expect(interrupteur(page, NOM.decompte)).toHaveAttribute('aria-checked', 'true');
     await expect(sonMetronome(page)).toHaveValue('click');
     await expect(ecouterEnEditant(page)).toHaveAttribute('aria-checked', 'true');
-    // Affichage
+    await allerA(page, 'Affichage');
+    await deplierAvancees(page);
     await expect(interrupteur(page, NOM.degres)).toHaveAttribute('aria-checked', 'true');
     // « Noms des rythmes » : sans réglage, allumé au-dessus de 1340 px de large, éteint en dessous (c'est ce que dit son infobulle)
     await expect(interrupteur(page, NOM.nomsRythmes)).toHaveAttribute('aria-checked', page.viewportSize()!.width > 1340 ? 'true' : 'false');
@@ -58,6 +68,7 @@ test.describe('Fenêtre Paramètres @parametres', () => {
     await ouvrir(page);
     await appuyer(page, f.getByRole('heading', { level: 2 }));
     await expect(f).toBeVisible();   // un clic sur la fenêtre ne la ferme pas
+    await allerA(page, 'Affichage');
     await appuyer(page, interrupteur(page, NOM.nomsRythmes));
     await expect(f).toBeVisible();   // ni un réglage
     await fermer(page);
@@ -71,6 +82,7 @@ test.describe('Fenêtre Paramètres @parametres', () => {
   test('la fenêtre tient dans l\'écran, défile, et « Recharger l\'application » est atteignable en bas', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     const f = await ouvrir(page);
+    await allerA(page, 'À propos');
     const taille = page.viewportSize()!;
     const b = (await f.boundingBox())!;
     expect(b.x).toBeGreaterThanOrEqual(0);
@@ -89,6 +101,7 @@ test.describe('Fenêtre Paramètres @parametres', () => {
   test('« À propos » : numéro de version à 12 chiffres, le même que celui des scripts chargés, et sa date', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     const f = await ouvrir(page);
+    await allerA(page, 'À propos');
     const version = (await f.getByText('Version de l\'application').locator('xpath=..').locator('strong').textContent())!.trim();
     expect(version).toMatch(/^\d{12}$/);
     // le même numéro que le « ?v= » des fichiers servis : sinon on affiche un numéro qui ne dit pas ce qu'on exécute
@@ -105,8 +118,10 @@ test.describe('Fenêtre Paramètres @parametres', () => {
   test('« Recharger l\'application » recharge la page et garde les réglages et le morceau', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     const f = await ouvrir(page);
+    await allerA(page, 'Affichage');
     await appuyer(page, interrupteur(page, NOM.degres));
     await expect(interrupteur(page, NOM.degres)).toHaveAttribute('aria-checked', 'false');
+    await allerA(page, 'À propos');
     await page.evaluate(() => { (window as any).__avantRechargement = true; });
     const recharger = f.getByRole('button', { name: 'Recharger l\'application' });
     await recharger.scrollIntoViewIfNeeded();
@@ -125,11 +140,13 @@ test.describe('Fenêtre Paramètres @parametres', () => {
     const avant = (await etat.textContent())!.trim();
     const morceauAvant = await lireStockage(page, 'harmohubSongs');
     await ouvrir(page);
+    await allerA(page, 'Affichage');
     await appuyer(page, interrupteur(page, NOM.degres));
     await appuyer(page, interrupteur(page, NOM.dateModif));
-    await curseur(page, 'Volume général').fill('40');
     await liste(page, 'Position d\'accord').selectOption({ index: 0 });
     await appuyer(page, choix(page, 'Couleur du fond', 'Vert'));
+    await allerA(page, 'Son');
+    await curseur(page, 'Volume général').fill('40');
     await fermer(page);
     await expect(etat).toHaveText(avant);
     await expect(etat).not.toContainText('Non enregistré');
@@ -152,6 +169,7 @@ test.describe('Fenêtre Paramètres : clavier @parametres @ordinateur', () => {
   test('la fenêtre se règle au clavier : Tab jusqu\'à un interrupteur, Entrée le bascule, Échap ferme', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await ouvrir(page);
+    await allerA(page, 'Affichage');
     const degres = interrupteur(page, NOM.degres);
     await degres.focus();
     await expect(degres).toBeFocused();
@@ -167,6 +185,7 @@ test.describe('Fenêtre Paramètres : clavier @parametres @ordinateur', () => {
   test('E-02 : Espace sur un interrupteur le bascule, sans lancer la lecture du morceau', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await ouvrir(page);
+    await allerA(page, 'Affichage');
     const degres = interrupteur(page, NOM.degres);
     await degres.focus();
     await page.keyboard.press('Space');

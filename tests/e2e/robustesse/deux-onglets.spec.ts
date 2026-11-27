@@ -26,6 +26,7 @@ test.describe('Deux onglets, un appareil @robustesse', () => {
     const B = await ouvrirOnglet(context);
     await devant(A);
     await A.locator('#open-settings').click();
+    await A.getByRole('dialog', { name: 'Paramètres' }).getByRole('tab', { name: 'Affichage', exact: true }).click();   // l'Apparence est dans l'onglet « Affichage »
     await A.getByRole('dialog', { name: 'Paramètres' }).getByRole('switch', { name: 'Verre dépoli' }).click();
     await A.keyboard.press('Escape');
     await expect.poll(() => B.evaluate(() => document.documentElement.getAttribute('data-glass')), { timeout: 10_000 }).toBe('1');

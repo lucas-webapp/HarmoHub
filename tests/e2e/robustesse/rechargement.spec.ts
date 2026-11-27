@@ -144,6 +144,7 @@ test.describe('Rechargement en cours d\'édition @robustesse', () => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await page.locator('#open-settings').click();
     const fenetre = page.getByRole('dialog', { name: 'Paramètres' });
+    await fenetre.getByRole('tab', { name: 'Affichage', exact: true }).click();   // l'Apparence est dans l'onglet « Affichage »
     await fenetre.getByRole('switch', { name: 'Verre dépoli' }).click();
     await expect(fenetre.getByRole('switch', { name: 'Verre dépoli' })).toHaveAttribute('aria-checked', 'true');
     await recharger(page);

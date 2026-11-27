@@ -37,7 +37,7 @@ const EXCLURE = ['#settings-title-look', '#settings-panel-look'];
 // Les états de l'interface qu'on relève, chacun avec le geste qui y mène.
 const ETATS = {
     accueil: async () => {},
-    parametres: async (p) => { await p.evaluate(() => window.app.openSettings()); await p.waitForTimeout(300); },
+    parametres: async (p) => { await p.evaluate(() => { window.app.openSettings(); window.app.afficherOngletReglages('affichage'); }); await p.waitForTimeout(300); },   // 26/11 : « Apparence » est dans l'onglet « Affichage »
     menu: async (p) => { const c = await p.locator('.grid-cell').first().boundingBox(); await p.mouse.click(c.x + c.width / 2, c.y + c.height / 2, { button: 'right' }); await p.waitForTimeout(300); },
     // Le menu du morceau (barre du haut, lot 3) : une surface de plus à relever, éteinte comme allumée.
     menuMorceau: async (p) => { await p.click('#tb-titre'); await p.waitForTimeout(250); },

@@ -151,6 +151,7 @@ const texteDe = (brut) => { if (!brut) return ''; const s = JSON.parse(brut); re
     await A.p.click('#tab-grille');
     check(await attendre(async () => (await versionsParoles(A)).some(v => v.motif === 'auto' && v.texte === 'Sous le pont Mirabeau coule la Seine|')), 'nouvelle modification : la version d\'avant (« …coule la Seine ») est gardée automatiquement');
     await A.p.click('#open-settings');
+    await A.p.click('#settings-tab-historique');   // 26/11 : les réglages sont rangés par onglet, l'historique a le sien
     await A.p.waitForSelector('#settings-panel-historique .hist-liste-paroles [data-restaurer-paroles]', { timeout: 5000 });
     const panneau = await A.p.evaluate(() => [...document.querySelectorAll('#settings-panel-historique .hist-carte-paroles')].map(c => ({ id: c.dataset.versionParoles, texte: c.textContent.replace(/\s+/g, ' ') })));
     check(panneau.length >= 2 && panneau.some(c => /« Sous le pont Mirabeau »/.test(c.texte)), `Paramètres › Historique liste les versions des paroles, avec un extrait (${panneau.length} versions)`);

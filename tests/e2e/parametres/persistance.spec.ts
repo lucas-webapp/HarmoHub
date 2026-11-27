@@ -2,7 +2,7 @@
 // d'usine si le stockage est vidé, et une valeur abîmée ne casse pas l'appli. Ordinateur et téléphone.
 import { test, expect } from '../support/fixtures';
 import {
-  C_AM_F_G, estMobile, appuyer, ouvrir, fermer, deplierAvancees, interrupteur, curseur, liste, choix, NOM, ecouterEnEditant, sonMetronome, reperesDeTemps,
+  C_AM_F_G, estMobile, appuyer, ouvrir, ouvrirSur, allerA, fermer, deplierAvancees, interrupteur, curseur, liste, choix, NOM, ecouterEnEditant, sonMetronome, reperesDeTemps,
   reglagesStockes, lireEtat, degresAffiches, sortie, mentions,
 } from './aide-parametres';
 import { bibliotheque, titre, ouvrirMesMorceaux } from '../fichiers/aide-fichiers';
@@ -11,7 +11,7 @@ import { bibliotheque, titre, ouvrirMesMorceaux } from '../fichiers/aide-fichier
 // Le réglage « Noms des rythmes » part d'une valeur qui dépend de la largeur de l'écran (allumé au-dessus de 1340 px, éteint en dessous, dit son infobulle) :
 // on le met donc à l'OPPOSÉ de ce qu'il vaut au départ, et on rend la valeur choisie.
 async function toutChanger(page: import('@playwright/test').Page): Promise<string> {
-  await ouvrir(page);
+  await ouvrirSur(page, 'Son');
   await deplierAvancees(page);
   await curseur(page, 'Volume général').fill('40');
   await curseur(page, 'Volume du métronome').fill('25');
@@ -21,6 +21,8 @@ async function toutChanger(page: import('@playwright/test').Page): Promise<strin
   await appuyer(page, interrupteur(page, NOM.decompte));
   await sonMetronome(page).selectOption({ label: 'Clave' });
   await appuyer(page, ecouterEnEditant(page));
+  await allerA(page, 'Affichage');                                  // les réglages d'affichage sont dans leur propre onglet
+  await deplierAvancees(page);
   await appuyer(page, interrupteur(page, NOM.degres));
   const depart = await interrupteur(page, NOM.nomsRythmes).getAttribute('aria-checked');
   await appuyer(page, interrupteur(page, NOM.nomsRythmes));
@@ -38,6 +40,8 @@ async function toutChanger(page: import('@playwright/test').Page): Promise<strin
   return nomsRythmes;
 }
 async function toutVerifier(page: import('@playwright/test').Page, nomsRythmes: string) {
+  await allerA(page, 'Son');
+  await deplierAvancees(page);
   await expect(curseur(page, 'Volume général')).toHaveValue('40');
   await expect(curseur(page, 'Volume du métronome')).toHaveValue('25');
   await expect(interrupteur(page, NOM.sonDeplacement)).toHaveAttribute('aria-checked', 'false');
@@ -46,6 +50,8 @@ async function toutVerifier(page: import('@playwright/test').Page, nomsRythmes: 
   await expect(interrupteur(page, NOM.decompte)).toHaveAttribute('aria-checked', 'false');
   await expect(sonMetronome(page).locator('option:checked')).toHaveText('Clave');
   await expect(ecouterEnEditant(page)).toHaveAttribute('aria-checked', 'false');
+  await allerA(page, 'Affichage');
+  await deplierAvancees(page);
   await expect(interrupteur(page, NOM.degres)).toHaveAttribute('aria-checked', 'false');
   await expect(interrupteur(page, NOM.nomsRythmes)).toHaveAttribute('aria-checked', nomsRythmes);
   await expect(curseur(page, 'Barres du séquenceur')).toHaveValue('34');
@@ -113,6 +119,7 @@ test.describe('Persistance des réglages @parametres', () => {
     expect(await sortie(page)).toEqual({ db: 0, muet: false });
     await ouvrir(page);
     await expect(curseur(page, 'Volume général')).toHaveValue('100');
+    await allerA(page, 'Affichage');
     await expect(interrupteur(page, NOM.degres)).toHaveAttribute('aria-checked', 'true');
     await expect(interrupteur(page, NOM.verre)).toHaveAttribute('aria-checked', 'false');
     await expect(choix(page, 'Couleur du fond', 'Aurore')).toBeChecked();
@@ -120,7 +127,7 @@ test.describe('Persistance des réglages @parametres', () => {
 
   test('les réglages sont ceux de l\'appareil : ouvrir un autre morceau ne les change pas @critique', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ reglages: bibliotheque([{ id: 'a', nom: 'Alpha', accords: C_AM_F_G }, { id: 'b', nom: 'Bravo', accords: [{ root: 'D', quality: 'min7' }, { root: 'G', quality: 'dom7' }] }], 'a') });
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     await appuyer(page, interrupteur(page, NOM.degres));
     await appuyer(page, choix(page, 'Couleur du fond', 'Vert'));
     await appuyer(page, interrupteur(page, NOM.verre));
@@ -147,7 +154,7 @@ test.describe('Persistance des réglages @parametres', () => {
     await page.reload();
     await page.waitForFunction(() => !!(window as any).app);
     await expect(page.locator('#progression-sections .grid-cell[data-index]')).toHaveCount(4);
-    await ouvrir(page);
+    await ouvrirSur(page, 'Affichage');
     const barres = Number(await curseur(page, 'Barres du séquenceur').inputValue());
     expect(barres).toBeGreaterThanOrEqual(22);
     expect(barres).toBeLessThanOrEqual(48);
@@ -155,6 +162,7 @@ test.describe('Persistance des réglages @parametres', () => {
     for (const g of ['Touches du piano', 'Pastilles de la guitare', 'Couleur du fond']) {
       await expect(page.getByRole('dialog', { name: 'Paramètres' }).getByRole('radiogroup', { name: g }).getByRole('radio', { checked: true })).toHaveCount(1);
     }
+    await allerA(page, 'Son');
     await expect(liste(page, 'Rythme des nouveaux accords').locator('option:checked')).toHaveCount(1);
     expect(erreurs).toEqual([]);
   });

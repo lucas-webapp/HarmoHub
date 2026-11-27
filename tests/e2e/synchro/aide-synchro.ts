@@ -142,6 +142,8 @@ export async function ouvrirParametres(page: Page): Promise<Locator> {
   await page.getByRole('button', { name: 'Paramètres' }).click();
   const fenetre = page.getByRole('dialog', { name: 'Paramètres' });
   await expect(fenetre).toBeVisible();
+  // Les réglages sont rangés par onglet (26/11) : les versions du morceau sont dans « Historique », seul onglet que ce module consulte.
+  await fenetre.getByRole('tab', { name: 'Historique', exact: true }).click();
   return fenetre;
 }
 
